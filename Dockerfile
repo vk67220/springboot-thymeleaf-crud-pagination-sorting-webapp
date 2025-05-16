@@ -11,7 +11,7 @@ COPY target/springboot-thymeleaf-crud-web-app.jar /usr/app/
 WORKDIR /usr/app/
 
 # Expose the application port
-EXPOSE 2323
+EXPOSE 8080
 
 # Run the Spring Boot application
 ENTRYPOINT ["java", "-jar", "springboot-thymeleaf-crud-web-app.jar"]
