@@ -51,7 +51,7 @@ spec:
     spec:
       containers:
         - name: springboot-app
-          image: job2-springboot-app:latest
+          image: prasad5806/springboot-thymeleaf-crud-web-app
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
