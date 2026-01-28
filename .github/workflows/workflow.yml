@@ -6,4 +6,6 @@ jobs:
     steps:
        - name: get code
          uses: actions/checkout@v3
+       - name: check files
+         run: ls -la
         
