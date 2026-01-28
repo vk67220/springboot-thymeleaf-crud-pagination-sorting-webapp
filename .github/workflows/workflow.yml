@@ -1,5 +1,5 @@
 name: First Workflow
-on: workflow_dispatch
+on: push
 jobs:
   first_job:
     runs-on: ubuntu-latest
@@ -11,4 +11,4 @@ jobs:
           echo "This is a multi-line script"
           echo "It can span multiple lines"
       - name: printing hi message
-        run: echo "hi"
+        run: echo "hello"
