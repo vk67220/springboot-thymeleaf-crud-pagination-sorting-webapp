@@ -21,7 +21,7 @@ jobs:
             mvn clean package -DskipTests
             ls -la target/
        - name: Upload artifact
-         uses: actions/upload-artifact@v3
+         uses: actions/upload-artifact@v6
          with:
            name: my-app
            path: target/*.jar
