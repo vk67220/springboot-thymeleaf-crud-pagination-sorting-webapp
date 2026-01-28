@@ -12,6 +12,18 @@ jobs:
          run: |
               mvn package -DskipTests
               ls -la target/
+       - name: install nodejs
+         uses: actions/setup-node@v3
+         with:
+           node-version: '18.x'
+       - name: check node version
+         run: node -v
+       - name: install dependencies
+         run: npm ci
+       - name: run tests
+         run: npm test   
+    
+
 
 
         
