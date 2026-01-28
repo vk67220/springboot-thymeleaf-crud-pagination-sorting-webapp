@@ -8,4 +8,6 @@ jobs:
          uses: actions/checkout@v3
        - name: check files
          run: ls -la
+       - name: mvn package
+         run: mvn clean package
         
