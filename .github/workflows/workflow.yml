@@ -4,11 +4,6 @@ jobs:
   first_job:
     runs-on: ubuntu-latest
     steps:
-      - name: Run a one-line script
-        run: echo "Hello, World!"
-      - name: Run a multi-line script
-        run: |
-          echo "This is a multi-line script"
-          echo "It can span multiple lines"
-      - name: printing hi message
-        run: echo "hello"
+       - name: get code
+         uses: actions/checkout@v3
+        
