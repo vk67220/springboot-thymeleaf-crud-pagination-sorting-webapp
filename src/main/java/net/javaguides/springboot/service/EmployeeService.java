@@ -6,6 +6,9 @@ import org.springframework.data.domain.Page;
 
 import net.javaguides.springboot.model.Employee;
 
+//list of employees details
+//service interface
+
 public interface EmployeeService {
 	List<Employee> getAllEmployees();
 	void saveEmployee(Employee employee);
