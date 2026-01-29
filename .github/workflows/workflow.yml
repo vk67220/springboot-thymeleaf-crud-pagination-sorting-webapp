@@ -5,7 +5,7 @@ on:
       - main
    paths:
       - 'src/**'
-      - 'pom.xml'  
+      - '**/pom.xml'  
 jobs:
   info:
     name: display info
