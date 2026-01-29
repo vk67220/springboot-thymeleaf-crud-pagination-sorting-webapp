@@ -6,9 +6,7 @@ import org.springframework.data.domain.Page;
 
 import net.javaguides.springboot.model.Employee;
 
-//list of employees details
-//service interface
-//declares methods to be implemented in service implementation class
+
 
 
 public interface EmployeeService {
