@@ -3,7 +3,7 @@ name: CI - Pull Request Validation
 on:
   pull_request:
     branches:
-      - master
+      - feature
     paths:
       - 'src/**'
       - '**/pom.xml'
