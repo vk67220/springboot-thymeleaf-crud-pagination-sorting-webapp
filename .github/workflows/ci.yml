@@ -1,0 +1,37 @@
+name: CI - Pull Request Validation
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'src/**'
+      - '**/pom.xml'
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+jobs:
+  info:
+    name: display github info
+    runs-on: ubuntu-latest
+    steps:
+      - name: github context
+        run: echo "${{ toJson(github) }}"
+
+  build:
+    name: build and test with maven
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build & test
+        run: mvn clean verify
