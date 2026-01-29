@@ -1,5 +1,11 @@
 name: First Workflow
-on: [push,workflow_dispatch]
+on: 
+  push:
+   branches:
+      - main
+   paths:
+      - 'src/**'
+      - 'pom.xml'  
 jobs:
   info:
     name: display info
