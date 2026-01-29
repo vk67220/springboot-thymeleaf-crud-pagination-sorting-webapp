@@ -5,9 +5,9 @@
                              https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
-    <!-- Parent Spring Boot Starter -->
-    <!-- https://spring.io/projects/spring-boot -->
-
+    
+ <!-- Parent Spring Boot Starter Parent -->
+ <!-- Provides default configurations for Spring Boot projects -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>

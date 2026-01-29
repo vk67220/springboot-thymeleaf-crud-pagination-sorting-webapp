@@ -2,8 +2,8 @@ package net.javaguides.springboot.model;
 
 import jakarta.persistence.*;
 
-//employee entity class
-//maps to the employees table in database
+
+
 
 @Entity
 @Table(name = "employees")
