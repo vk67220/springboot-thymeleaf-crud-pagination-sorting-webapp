@@ -1,5 +1,16 @@
 name: First Workflow
-on: 
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'src/**'
+      - '**/pom.xml'
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:    
   push:
    branches:
       - master
