@@ -7,8 +7,7 @@ import org.springframework.data.domain.Page;
 import net.javaguides.springboot.model.Employee;
 
 
-// Service interface for Employee operations
-// Defines the contract for EmployeeServiceImpl
+
 
 public interface EmployeeService {
 	List<Employee> getAllEmployees();

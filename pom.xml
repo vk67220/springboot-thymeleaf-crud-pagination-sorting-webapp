@@ -6,8 +6,7 @@
 
     <modelVersion>4.0.0</modelVersion>
     
- <!-- Parent Spring Boot Starter Parent -->
- <!-- Provides default configurations for Spring Boot projects -->
+
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
