@@ -1,63 +1,61 @@
 name: First Workflow
+
 on:
-  pull_request:
-    branches:
-      - master
-    paths:
-      - 'src/**'
-      - '**/pom.xml'
-    types:
-      - opened
-      - synchronize
-      - reopened
-  workflow_dispatch:    
-  push:
-   branches:
-      - master
-   paths:
-      - 'src/**'
-      - '**/pom.xml'
+  workflow_dispatch:
+
 jobs:
-  info:
-    name: display info
+  build-and-docker:
+    name: Build with Maven & Docker
     runs-on: ubuntu-latest
-    steps:
-      - name: github output
-        run: echo "{{toJson(github)}}"
-  build:
-    name: build with maven
-    runs-on: ubuntu-latest
-    steps:
-       - name: Get code
-         uses: actions/checkout@v3
 
-       - name: Set up JDK 17
-         uses: actions/setup-java@v3
-         with:
-           java-version: '17'
-           distribution: 'temurin'
-       - name: Install maven
-         run: mvn -version
-
-       - name: Build package
-         run: |
-            mvn clean package -DskipTests
-            ls -la target/
-       - name: Upload artifact
-         uses: actions/upload-artifact@v6
-         with:
-           name: my-app
-           path: target/*.jar
-  Deploy:
-    name: Deploy to server
-    runs-on: ubuntu-latest
-    needs: build
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v5
+      # 1️⃣ Checkout source code
+      - name: Get code
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup Java
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
         with:
-          name: my-app
-      - name: Verify artifact
-        run: ls -la *.jar
-      - name: Deploy to server
-        run: echo "Deploying to server..."
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # 3️⃣ Verify Maven
+      - name: Verify Maven
+        run: mvn -version
+      - name: Handle failure
+        if: failure()
+        run: echo "Maven setup failed. Please check the logs for details."
+      # 4️⃣ Build application
+      - name: Build package
+        if: always()
+        run: |
+          mvn clean package -DskipTests
+          ls -la target/
+  Docker_build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout source code
+      - name: Get code
+        uses: actions/checkout@v4
+
+      # 2️⃣  Docker login
+      - name: Docker login
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build docker image
+        run: |
+          docker build -t myapp:latest .
+          docker tag myapp:latest ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
+      - name: Push docker image
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/myapp:${github.run_number}       
+
+
+      
