@@ -33,14 +33,14 @@ jobs:
         run: |
           mvn clean package -DskipTests
           ls -la target/
-  Docker_build:
-    name: Build Docker Image
-    runs-on: ubuntu-latest
+  #Docker_build:
+    #name: Build Docker Image
+    #runs-on: ubuntu-latest
 
-    steps:
+    #steps:
       # 1️⃣ Checkout source code
-      - name: Get code
-        uses: actions/checkout@v4
+      #- name: Get code
+        #uses: actions/checkout@v4
 
       # 2️⃣  Docker login
       - name: Docker login
