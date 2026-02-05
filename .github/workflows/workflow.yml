@@ -57,5 +57,6 @@ jobs:
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/myapp:${{ github.run_number }}   
 
-
+      - name: print docker images
+        run: docker images
       
