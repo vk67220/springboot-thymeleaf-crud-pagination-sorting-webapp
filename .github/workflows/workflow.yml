@@ -61,4 +61,13 @@ jobs:
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/myapp:${{ github.run_number }}   
-      
+      - name: Docker run container
+        run: |
+          docker run -d -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/myapp:${{ github.run_number }}
+      - name: list running containers
+        run: docker ps
+
+      - name: Verify container is running
+        run: |
+          sleep 10
+          curl -f http://localhost:8080/ || exit 1
