@@ -1,0 +1,74 @@
+name: First Workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-docker:
+    name: Build with Maven & Docker
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout source code
+      - name: Get code
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup Java
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # 3️⃣ Verify Maven
+      - name: Verify Maven
+        run: mvn -version
+      - name: Handle failure
+        if: failure()
+        run: echo "Maven setup failed. Please check the logs for details."
+      # 4️⃣ Build application
+      - name: Build package
+        if: always()
+        run: |
+          mvn clean package -DskipTests
+          ls -la target/
+      - name: Check Docker version
+        run: docker --version
+      
+      - name: Install Docker Compose
+        run: |
+          if ! docker compose version >/dev/null 2>&1; then
+            echo "Docker Compose not found. Installing..."
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.25.0/docker-compose-linux-x86_64" \
+              -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+          else
+            echo "Docker Compose already installed"
+          fi
+
+      - name: Check Docker Compose version
+        run: docker compose version
+
+      - name: Build and run with Docker Compose
+        run: docker compose up --build -d
+
+      - name: Show running containers
+        run: docker ps
+
+      - name: check application logs
+        run: docker compose logs springboot-app
+
+      - name: check application health
+        run: |
+          sleep 30 # Wait for the application to start
+          if curl -s http://localhost:2323/actuator/health | grep -q '"status":"UP"'; then
+            echo "Application is healthy"
+          else
+            echo "Application is not healthy"
+            exit 1
+          fi
+      - name: Tear down Docker Compose
+        run: docker compose down
+
+        
