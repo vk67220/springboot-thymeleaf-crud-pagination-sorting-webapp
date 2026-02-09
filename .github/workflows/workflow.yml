@@ -51,7 +51,12 @@ jobs:
       - name: Build docker image
         run: |
           docker build -t myapp:latest .
+          docker tag myapp:latest ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
           docker tag myapp:latest ${{ secrets.DOCKERHUB_USERNAME }}/myapp:${{ github.run_number }}
+      
+      - name: Verify docker image
+        run: docker images | grep myapp
+
       - name: Push docker image
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
