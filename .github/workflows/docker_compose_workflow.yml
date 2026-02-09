@@ -98,7 +98,7 @@ jobs:
         run: |
           IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/springboot-app"
           
-          docker tag springboot-app:latest $IMAGE_NAME:latest
+          docker tag springboot-app $IMAGE_NAME:latest
           docker tag springboot-app:latest $IMAGE_NAME:${{ github.run_number}}
           
           docker push $IMAGE_NAME:latest

@@ -21,8 +21,9 @@ services:
       - mysql-data:/var/lib/mysql
 
   springboot-app:
+    image: springboot-app:latest
     build: .
-    container_name: springboot-app:latest
+    container_name: springboot-app
     restart: unless-stopped
     depends_on:
       mysql:
