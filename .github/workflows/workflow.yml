@@ -63,7 +63,7 @@ jobs:
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/myapp:${{ github.run_number }}   
       - name: Docker run container
         run: |
-          docker run -d -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/myapp:${{ github.run_number }}
+          docker run -d --name myapp-test -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/myapp:${{ github.run_number }}
       - name: list running containers
         run: docker ps
 
@@ -74,4 +74,4 @@ jobs:
 
       - name: containers logs
         if: always()
-        run: docker logs $(docker ps -q --filter "ancestor=${{ secrets.DOCKERHUB_USERNAME }}/myapp:${{ github.run_number }}")
+        run: docker logs myapp-test
