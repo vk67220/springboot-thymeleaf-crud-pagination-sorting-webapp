@@ -1,41 +1,46 @@
-version: '3.8'
-
 services:
+
   mysql:
     image: mysql:8.0
     container_name: mysql-db
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
     environment:
+      MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: demo
       MYSQL_USER: admin
       MYSQL_PASSWORD: ashokit123
-      MYSQL_ROOT_PASSWORD: root
-    ports:
-      - "3306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uadmin -pashokit123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     volumes:
-      - db_data:/var/lib/mysql
-    networks:
-      - springboot-net
+      - mysql-data:/var/lib/mysql
 
   springboot-app:
     build: .
     container_name: springboot-app
+    restart: unless-stopped
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
     ports:
       - "2323:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/demo?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC&useLegacyDatetimeCode=false
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/demo?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: admin
       SPRING_DATASOURCE_PASSWORD: ashokit123
+      SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT: 0
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQLDialect
-      LOGGING_LEVEL_ORG_HIBERNATE_SQL: DEBUG
-      LOGGING_LEVEL_ORG_HIBERNATE_TYPE: TRACE
-    networks:
-      - springboot-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
 
 volumes:
-  db_data:
-
-networks:
-  springboot-net:
+  mysql-data:
