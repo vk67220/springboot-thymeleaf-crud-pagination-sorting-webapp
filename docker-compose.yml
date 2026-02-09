@@ -22,7 +22,7 @@ services:
 
   springboot-app:
     build: .
-    container_name: springboot-app
+    container_name: springboot-app:latest
     restart: unless-stopped
     depends_on:
       mysql:
