@@ -61,14 +61,18 @@ jobs:
 
       - name: check application health
         run: |
-          sleep 30 # Wait for the application to start
-          if curl -s http://localhost:2323/actuator/health | grep -q '"status":"UP"'; then
-            echo "Application is healthy"
-          else
-            echo "Application is not healthy"
-            exit 1
-          fi
-      - name: Tear down Docker Compose
+           echo "Waiting for Spring Boot application..."
+           for i in {1..40}; do
+           if curl -f http://localhost:2323 > /dev/null 2>&1; then
+           echo "Application is UP!"
+           exit 0
+           fi
+           echo "App not ready yet... waiting"
+           sleep 5
+           done
+           echo "Application did not become healthy in time"
+           docker compose logs springboot-app
+           exit 1
+      - name: Down Docker Compose
         run: docker compose down
 
-        
