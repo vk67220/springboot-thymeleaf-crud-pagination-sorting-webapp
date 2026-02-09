@@ -73,4 +73,5 @@ jobs:
           curl -f http://localhost:8080/ || exit 1
 
       - name: containers logs
+        if: always()
         run: docker logs $(docker ps -q --filter "ancestor=${{ secrets.DOCKERHUB_USERNAME }}/myapp:${{ github.run_number }}")
