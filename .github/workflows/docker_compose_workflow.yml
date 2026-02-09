@@ -66,7 +66,7 @@ jobs:
         run: |
           echo "Waiting for MySQL to be healthy..."
           for i in {1..30}; do
-            if docker compose exec mysql mysqladmin ping -h localhost -uadmin -pashokit123 > /dev/null 2>&1; then
+            if docker compose exec -T mysql mysqladmin ping -h localhost -uroot -proot --silent; then
               echo "MySQL is healthy!"
               exit 0
             fi
@@ -96,10 +96,12 @@ jobs:
            exit 1
       - name: Tag & Push Docker Image
         run: |
-          IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest"
-          docker tag springboot-app $IMAGE_NAME
-
+          IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/springboot-app"
+          
+          docker tag springboot-app $IMAGE_NAME:latest
           docker tag springboot-app $IMAGE_NAME:${{ github.run_number}}
+          
+          docker push $IMAGE_NAME:latest
           docker push $IMAGE_NAME:${{ github.run_number}}
 
       - name: Down Docker Compose
