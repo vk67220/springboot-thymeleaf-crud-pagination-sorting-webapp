@@ -26,3 +26,7 @@ runs:
         mvn clean package -DskipTests
         ls -la target/
       shell: bash
+
+    - name: Down Docker Compose
+      run: docker compose down
+      shell: bash

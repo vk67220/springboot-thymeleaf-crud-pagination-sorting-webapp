@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Get code
         uses: actions/checkout@v4
-          
+
       - name: Maven Build & Package
         uses: ./.github/actions/maven-build
         with:
@@ -89,5 +89,5 @@ jobs:
           docker push $IMAGE_NAME:${{ github.run_number}}
 
       - name: Down Docker Compose
-        run: docker compose down
+        uses: ./.github/actions/maven-build
 
