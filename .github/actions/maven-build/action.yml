@@ -1,47 +1,53 @@
 name: Maven Build & Package
-description: Setup Java, verify Maven, and build package
+description: Setup Java 17 and build Maven project
 
 inputs:
   java-version:
-    description: 'Java version to use (e.g., 17)'
+    description: "Java version to use for the build"
     required: false
     default: "17"
 
 outputs:
   build-status:
-    description: 'Status of the Maven build'
-    value: ${{ job.status }}
-  java-version-check:
-    description: 'Result of Java version check'
-    value: ${{ steps.setup-java.outputs.java-version }}
+    description: "Build result"
+    value: ${{ steps.build.outputs.status }}
+
+  java-version:
+    description: "Java version used"
+    value: ${{ steps.java.outputs.version }}
 
 runs:
   using: composite
   steps:
-    - name: Validate JDK
-      if: ${{ inputs.java-version == '17' }}
+    
+    - name: Validate Java version
+      if: ${{ inputs.java-version != '17' }}
       run: |
-        echo "Only Java 17 is supported. You provided: ${{ inputs.java-version }}"
+        echo "Only Java 17 is supported"
+        exit 1
       shell: bash
 
-    - name: Set up JDK
-      id: setup-java
+    
+    - name: Setup Java
+      id: java
       uses: actions/setup-java@v3
       with:
-        java-version: ${{ inputs.java-version }}
         distribution: temurin
+        java-version: 17
         cache: maven
 
-    - name: Verify Maven
-      run: mvn -version
+    
+    - name: Capture Java version
+      id: java-version
+      run: |
+        VERSION=$(java -version 2>&1 | head -n 1)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
       shell: bash
 
+    
     - name: Build with Maven
+      id: build
       run: |
         mvn clean package -DskipTests
-        ls -la target/
-      shell: bash
-
-    - name: Down Docker Compose
-      run: docker compose down
+        echo "status=success" >> $GITHUB_OUTPUT
       shell: bash
