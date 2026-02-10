@@ -12,6 +12,7 @@ runs:
   steps:
     - name: Set up JDK
       uses: actions/setup-java@v3
+      if: ${{ inputs.java-version == '17' }}
       with:
         java-version: ${{ inputs.java-version }}
         distribution: temurin

@@ -15,7 +15,7 @@ jobs:
       - name: Maven Build & Package
         uses: ./.github/actions/maven-build
         with:
-          java-version: '17'
+          java-version: '11'
 
       - name: Check Docker version
         run: docker --version
