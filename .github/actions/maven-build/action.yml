@@ -6,12 +6,17 @@ inputs:
     description: 'Java version to use (e.g., 17)'
     required: false
     default: "17"
+    
 
 runs:
   using: composite
   steps:
-    - name: Set up JDK
+    - name: Validate JDK
       if: ${{ inputs.java-version == '17' }}
+      run: |
+        echo "Only Java 17 is supported. You provided: ${{ inputs.java-version }}"
+      shell: bash
+    - name: Set up JDK
       uses: actions/setup-java@v3
       with:
         java-version: ${{ inputs.java-version }}
