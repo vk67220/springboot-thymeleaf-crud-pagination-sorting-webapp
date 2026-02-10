@@ -1,0 +1,16 @@
+name: Docker Compose Down
+
+outputs:
+  status:
+    description: "Status of Docker Compose down"
+    value: ${{ steps.down.outputs.status }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Down Docker Compose
+      id: down
+      run: |
+        docker compose down
+        echo "status=success" >> $GITHUB_OUTPUT
+      shell: bash

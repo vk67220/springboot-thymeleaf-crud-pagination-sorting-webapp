@@ -95,5 +95,10 @@ jobs:
           docker push $IMAGE_NAME:${{ github.run_number}}
 
       - name: Down Docker Compose
-        uses: ./.github/actions/maven-build
+        id: down
+        uses: ./.github/actions/docker-compose-down
+
+      - name: print final outputs
+        run: |
+          echo "Docker Compose Down Status: ${{ steps.down.outputs.status }}"
 
