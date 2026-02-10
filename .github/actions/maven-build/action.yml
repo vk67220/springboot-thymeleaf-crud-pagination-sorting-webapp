@@ -6,7 +6,14 @@ inputs:
     description: 'Java version to use (e.g., 17)'
     required: false
     default: "17"
-    
+
+outputs:
+  build-status:
+    description: 'Status of the Maven build'
+    value: ${{ job.status }}
+  java-version-check:
+    description: 'Result of Java version check'
+    value: ${{ steps.setup-java.outputs.java-version }}
 
 runs:
   using: composite
@@ -16,8 +23,9 @@ runs:
       run: |
         echo "Only Java 17 is supported. You provided: ${{ inputs.java-version }}"
       shell: bash
-      
+
     - name: Set up JDK
+      id: setup-java
       uses: actions/setup-java@v3
       with:
         java-version: ${{ inputs.java-version }}
