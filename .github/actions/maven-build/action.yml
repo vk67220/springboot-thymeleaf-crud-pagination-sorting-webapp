@@ -16,6 +16,7 @@ runs:
       run: |
         echo "Only Java 17 is supported. You provided: ${{ inputs.java-version }}"
       shell: bash
+      
     - name: Set up JDK
       uses: actions/setup-java@v3
       with:
