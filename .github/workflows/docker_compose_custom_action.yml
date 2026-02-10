@@ -16,6 +16,11 @@ jobs:
         uses: ./.github/actions/maven-build
         with:
           java-version: '17'
+        
+      - name: print outputs
+        run: |
+          echo "Build Status: ${{ steps.maven-build.outputs.build-status }}"
+          echo "Java Version: ${{ steps.maven-build.outputs.java-version }}"  
 
       - name: Check Docker version
         run: docker --version
