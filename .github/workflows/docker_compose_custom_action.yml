@@ -9,11 +9,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Get code
+        uses: actions/checkout@v4
+          
       - name: Maven Build & Package
         uses: ./.github/actions/maven-build
         with:
           java-version: '17'
-          
+
       - name: Check Docker version
         run: docker --version
       

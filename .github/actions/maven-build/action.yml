@@ -1,20 +1,15 @@
 name: Maven Build & Package
-description: Checkout code, setup Java, verify Maven, and build package
+description: Setup Java, verify Maven, and build package
 
 inputs:
   java-version:
-    description: Java version to use
+    description: 'Java version to use (e.g., 17)'
     required: false
     default: "17"
 
 runs:
   using: composite
   steps:
-    # 1️⃣ Checkout code
-    - name: Checkout source code
-      uses: actions/checkout@v4
-
-    # 2️⃣ Setup Java
     - name: Set up JDK
       uses: actions/setup-java@v3
       with:
@@ -22,12 +17,10 @@ runs:
         distribution: temurin
         cache: maven
 
-    # 3️⃣ Verify Maven
     - name: Verify Maven
       run: mvn -version
       shell: bash
 
-    # 4️⃣ Build package
     - name: Build with Maven
       run: |
         mvn clean package -DskipTests
