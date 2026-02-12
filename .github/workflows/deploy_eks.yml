@@ -127,5 +127,5 @@ jobs:
 
       - name: Verify rollout
         run: |
-          kubectl rollout status deployment/springboot-app
+          kubectl rollout status deployment/springboot-deployment
           kubectl get svc springboot-service
