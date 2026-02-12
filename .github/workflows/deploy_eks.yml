@@ -1,0 +1,131 @@
+name: Deploy to EKS with Docker Compose
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-docker:
+    name: Build with Maven & Docker
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get code
+        uses: actions/checkout@v4
+
+      # 🔧 Composite Action (Your existing)
+      - name: Maven Build & Package
+        id: maven-build
+        uses: ./.github/actions/maven-build
+        with:
+          java-version: '17'
+        
+      - name: print outputs
+        run: |
+          echo "Build Status: ${{ steps.maven-build.outputs.build-status }}"
+          echo "Java Version: ${{ steps.maven-build.outputs.java-version }}"  
+
+      - name: Check Docker version
+        run: docker --version
+      
+      - name: Install Docker Compose
+        run: |
+          if ! docker compose version >/dev/null 2>&1; then
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.25.0/docker-compose-linux-x86_64" \
+              -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+          fi
+
+      - name: Check Docker Compose version
+        run: docker compose version
+
+      - name: login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 🐳 Run Integration Test using Docker Compose
+      - name: Build and run with Docker Compose
+        run: docker compose up --build -d
+
+      - name: Show running containers
+        run: docker ps
+      
+      - name: wait for mysql to be healthy
+        run: |
+          for i in {1..30}; do
+            if docker compose exec -T mysql mysqladmin ping -h localhost -uroot -proot --silent; then
+              echo "MySQL is healthy!"
+              exit 0
+            fi
+            sleep 10
+          done
+          docker compose logs mysql
+          exit 1
+
+      - name: check application health
+        run: |
+          for i in {1..40}; do
+            if curl -f http://localhost:2323 >/dev/null 2>&1; then
+              echo "Application is UP!"
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose logs springboot-app
+          exit 1
+
+      # 📦 Tag & Push Image
+      - name: Tag & Push Docker Image
+        run: |
+          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:${{ github.run_number }}"
+
+          docker tag springboot-app:latest $IMAGE
+          docker push $IMAGE
+
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      # 🧹 Down Compose (your composite)
+      - name: Down Docker Compose
+        id: down
+        uses: ./.github/actions/docker-compose-down
+
+      - name: print final outputs
+        run: |
+          echo "Docker Compose Down Status: ${{ steps.down.outputs.status }}"
+
+      # ===================================================
+      # 🚀 NEW SECTION → DEPLOY TO AWS EKS
+      # ===================================================
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+      
+      - name: Check kubectl version
+        run: kubectl version --client
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ secrets.AWS_REGION }} \
+            --name ${{ secrets.EKS_CLUSTER_NAME }}
+
+      - name: Deploy to EKS
+        run: |
+          sed -i "s|DOCKER_IMAGE|$IMAGE|g" k8s/deployment.yaml
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/springboot-app
+          kubectl get svc springboot-service
