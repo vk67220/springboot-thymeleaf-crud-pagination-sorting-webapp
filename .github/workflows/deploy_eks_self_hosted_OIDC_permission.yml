@@ -1,0 +1,171 @@
+name: Deploy to EKS with Docker Compose (Enterprise OIDC)
+
+on:
+  workflow_dispatch:
+
+############################################################
+# 🔐 ENTERPRISE SECURITY PERMISSIONS (Anti Script-Injection)
+############################################################
+permissions:
+  id-token: write      # Required for AWS OIDC
+  contents: read       # Checkout code only
+  actions: read
+  checks: read
+  pull-requests: read
+
+jobs:
+  build-and-deploy:
+    name: Build, Test & Deploy to EKS
+    runs-on: [self-hosted, Linux, X64]
+
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+
+    steps:
+      #######################################################
+      # 📥 Checkout
+      #######################################################
+      - name: Get code
+        uses: actions/checkout@v4
+
+      #######################################################
+      # 🔧 Maven Build (Composite Action)
+      #######################################################
+      - name: Maven Build & Package
+        id: maven-build
+        uses: ./.github/actions/maven-build
+        with:
+          java-version: '17'
+
+      - name: Print outputs
+        run: |
+          echo "Build Status: ${{ steps.maven-build.outputs.build-status }}"
+          echo "Java Version: ${{ steps.maven-build.outputs.java-version }}"
+
+      #######################################################
+      # 🐳 Verify Docker
+      #######################################################
+      - name: Check Docker version
+        run: docker --version
+
+      - name: Check Docker Compose version
+        run: docker compose version
+
+      #######################################################
+      # 🔐 DockerHub Login
+      #######################################################
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      #######################################################
+      # 🧪 Integration Test via Docker Compose
+      #######################################################
+      - name: Build and run with Docker Compose
+        run: docker compose up --build -d
+
+      - name: Show running containers
+        run: docker ps
+
+      #######################################################
+      # ⏳ Wait for MySQL Health
+      #######################################################
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            if docker compose exec -T mysql mysqladmin ping -h localhost -uroot -proot --silent; then
+              echo "MySQL healthy!"
+              exit 0
+            fi
+            echo "Waiting MySQL..."
+            sleep 10
+          done
+          docker compose logs mysql
+          exit 1
+
+      #######################################################
+      # ⏳ Wait for App Health
+      #######################################################
+      - name: Check application health
+        run: |
+          for i in {1..40}; do
+            if curl -f http://localhost:2323 >/dev/null 2>&1; then
+              echo "Application UP!"
+              exit 0
+            fi
+            echo "Waiting App..."
+            sleep 5
+          done
+          docker compose logs springboot-app
+          exit 1
+
+      #######################################################
+      # 📦 Tag & Push Docker Image
+      #######################################################
+      - name: Tag & Push Docker Image
+        run: |
+          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:${{ github.run_number }}"
+          docker tag springboot-app:latest $IMAGE
+          docker push $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      #######################################################
+      # 🧹 Stop Docker Compose (Composite Action)
+      #######################################################
+      - name: Down Docker Compose
+        id: down
+        uses: ./.github/actions/docker-compose-down
+
+      - name: Print final outputs
+        run: |
+          echo "Docker Compose Down Status: ${{ steps.down.outputs.status }}"
+
+      #######################################################
+      # ☁️ AWS LOGIN (OIDC - ENTERPRISE STANDARD)
+      #######################################################
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::597918493080:role/github-oidc-selfhosted-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS Identity
+        run: aws sts get-caller-identity
+
+      #######################################################
+      # ☸️ Install kubectl
+      #######################################################
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Check kubectl
+        run: kubectl version --client
+
+      #######################################################
+      # 🔗 Connect to EKS
+      #######################################################
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region "$AWS_REGION" \
+            --name "$CLUSTER_NAME"
+
+      #######################################################
+      # 🚀 Deploy to EKS
+      #######################################################
+      - name: Deploy Kubernetes Resources
+        run: |
+          sed -i "s|DOCKER_IMAGE|${{ env.IMAGE }}|g" deployment.yml
+          kubectl apply -f deployment.yml
+          kubectl apply -f service.yml
+
+      #######################################################
+      # ✅ Verify Rollout
+      #######################################################
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/springboot-deployment
+          kubectl get svc springboot-service
