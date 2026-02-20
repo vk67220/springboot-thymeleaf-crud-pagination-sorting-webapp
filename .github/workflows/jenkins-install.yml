@@ -2,14 +2,7 @@ name: Jenkins Installation using Jenkins.sh
 
 on:
   workflow_dispatch:
-    inputs:
-      target_env:
-        description: "Select environment"
-        required: true
-        type: choice
-        options:
-          - dev
-          - production
+    
 
 permissions:
   contents: read
