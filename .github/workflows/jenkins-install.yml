@@ -15,15 +15,15 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # ---------------------------------------
-      # Checkout Repository
-      # ---------------------------------------
+      # -----------------------------------
+      # Checkout
+      # -----------------------------------
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ---------------------------------------
-      # Configure AWS using OIDC
-      # ---------------------------------------
+      # -----------------------------------
+      # AWS OIDC Login
+      # -----------------------------------
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -33,32 +33,27 @@ jobs:
       - name: Verify AWS Identity
         run: aws sts get-caller-identity
 
-      # ---------------------------------------
-      # Create Jenkins.sh dynamically
-      # ---------------------------------------
-      - name: Create Jenkins.sh
+      # -----------------------------------
+      # Install Jenkins (FIXED SCRIPT)
+      # -----------------------------------
+      - name: Install Jenkins
         run: |
-          cat << 'EOF' > Jenkins.sh
-          #!/bin/bash
-          set -e
-
           echo "Updating packages..."
           sudo apt update -y
 
           echo "Installing dependencies..."
           sudo apt install -y fontconfig openjdk-17-jre-headless wget gnupg2 ca-certificates curl
 
-          echo "Cleaning old Jenkins repo..."
+          echo "Removing old Jenkins repo..."
           sudo rm -f /etc/apt/sources.list.d/jenkins.list
-          sudo rm -f /usr/share/keyrings/jenkins-keyring.gpg
+          sudo rm -f /usr/share/keyrings/jenkins-keyring.asc
 
           echo "Adding Jenkins GPG key..."
           wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key \
-            | gpg --dearmor \
-            | sudo tee /usr/share/keyrings/jenkins-keyring.gpg > /dev/null
+            | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
 
           echo "Adding Jenkins repository..."
-          echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.gpg] https://pkg.jenkins.io/debian-stable binary/" \
+          echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/" \
             | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
 
           echo "Updating apt sources..."
@@ -71,32 +66,17 @@ jobs:
           sudo systemctl daemon-reexec
           sudo systemctl enable jenkins
           sudo systemctl start jenkins
-          EOF
 
-          chmod +x Jenkins.sh
-
-      # ---------------------------------------
-      # Run Installation Script
-      # ---------------------------------------
-      - name: Run Jenkins Installation
-        run: bash Jenkins.sh
-
-      # ---------------------------------------
-      # Show Jenkins Version
-      # ---------------------------------------
+      # -----------------------------------
+      # Check Jenkins
+      # -----------------------------------
       - name: Jenkins Version
         run: |
           sleep 20
           jenkins --version || sudo jenkins --version || true
 
-      # ---------------------------------------
-      # Check Jenkins Service Status
-      # ---------------------------------------
-      - name: Check Jenkins Service Status
+      - name: Jenkins Status
         run: sudo systemctl status jenkins --no-pager || true
 
-      # ---------------------------------------
-      # Print Initial Admin Password
-      # ---------------------------------------
-      - name: Print Jenkins Initial Password
+      - name: Jenkins Initial Password
         run: sudo cat /var/lib/jenkins/secrets/initialAdminPassword || true
