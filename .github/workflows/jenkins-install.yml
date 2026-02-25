@@ -1,4 +1,4 @@
-name: Jenkins Installation
+name: Install Jenkins
 
 on:
   workflow_dispatch:
@@ -15,15 +15,15 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # -----------------------------------
-      # Checkout Repo
-      # -----------------------------------
+      # -------------------------------
+      # Checkout
+      # -------------------------------
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # -----------------------------------
-      # AWS OIDC Login
-      # -----------------------------------
+      # -------------------------------
+      # AWS OIDC Login (your setup)
+      # -------------------------------
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -33,9 +33,9 @@ jobs:
       - name: Verify AWS Identity
         run: aws sts get-caller-identity
 
-      # -----------------------------------
-      # Install Jenkins (SCRIPT INCLUDED)
-      # -----------------------------------
+      # -------------------------------
+      # Install Jenkins (Your Script)
+      # -------------------------------
       - name: Install Jenkins
         run: |
           set -e
@@ -43,35 +43,34 @@ jobs:
           echo "Updating packages..."
           sudo apt update -y
 
-          echo "Installing Java..."
+          echo "Installing dependencies..."
           sudo apt install -y openjdk-17-jre-headless wget ca-certificates curl
 
-          echo "Cleaning old Jenkins repo..."
-          sudo rm -f /etc/apt/sources.list.d/jenkins.list
-          sudo rm -f /usr/share/keyrings/jenkins-keyring.asc
+          echo "Create keyrings directory..."
+          sudo mkdir -p /etc/apt/keyrings
 
-          echo "Downloading Jenkins GPG key..."
-          sudo wget -q -O /usr/share/keyrings/jenkins-keyring.asc \
-          https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+          echo "Download Jenkins GPG key..."
+          sudo wget -q -O /etc/apt/keyrings/jenkins-keyring.asc \
+          https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
 
-          echo "Adding Jenkins repository..."
-          echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/" \
+          echo "Add Jenkins repository..."
+          echo "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/" \
           | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
 
-          echo "Updating apt sources..."
-          sudo apt-get update -y
+          echo "Update apt..."
+          sudo apt update -y
 
-          echo "Installing Jenkins..."
-          sudo apt-get install -y jenkins
+          echo "Install Jenkins..."
+          sudo apt install -y jenkins
 
-          echo "Starting Jenkins..."
+          echo "Start Jenkins..."
           sudo systemctl daemon-reexec
           sudo systemctl enable jenkins
           sudo systemctl start jenkins
 
-      # -----------------------------------
+      # -------------------------------
       # Verify Jenkins
-      # -----------------------------------
+      # -------------------------------
       - name: Jenkins Version
         run: |
           sleep 20
