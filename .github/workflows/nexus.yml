@@ -1,4 +1,4 @@
-name: Java CI with Nexus (Self-Hosted + MySQL)
+name: Java CI with Nexus (Self-Hosted + Smart MySQL)
 
 on:
   workflow_dispatch
@@ -13,7 +13,7 @@ jobs:
 
     steps:
 
-      # 🔹 Checkout
+      # 🔹 Checkout Code
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -40,16 +40,23 @@ jobs:
       - name: Check Maven
         run: mvn -version
 
-      # 🔥 Start MySQL (Docker)
-      - name: Start MySQL Container
+      # 🔥 Start MySQL ONLY IF NOT RUNNING
+      - name: Start MySQL (Smart)
         run: |
-          docker rm -f mysql || true
-          docker run -d \
-            --name mysql \
-            -e MYSQL_ROOT_PASSWORD=root \
-            -e MYSQL_DATABASE=testdb \
-            -p 3306:3306 \
-            mysql:8
+          if docker inspect -f '{{.State.Running}}' mysql 2>/dev/null | grep true; then
+            echo "MySQL already running"
+          else
+            echo "Starting MySQL container..."
+
+            docker rm -f mysql || true
+
+            docker run -d \
+              --name mysql \
+              -e MYSQL_ROOT_PASSWORD=root \
+              -e MYSQL_DATABASE=testdb \
+              -p 3306:3306 \
+              mysql:8
+          fi
 
       # 🔥 Wait for MySQL
       - name: Wait for MySQL
@@ -69,7 +76,7 @@ jobs:
       - name: Compile
         run: mvn compile
 
-      # 🔹 Test (NOW WILL PASS)
+      # 🔹 Test
       - name: Test
         run: mvn test
 
@@ -77,7 +84,7 @@ jobs:
       - name: Package
         run: mvn package
 
-      # 🔹 Create settings.xml
+      # 🔹 Create Maven settings.xml (for Nexus)
       - name: Create Maven settings.xml
         run: |
           mkdir -p ~/.m2
@@ -93,6 +100,6 @@ jobs:
           </settings>
           EOF
 
-      # 🔹 Deploy
+      # 🔹 Deploy to Nexus
       - name: Deploy to Nexus
         run: mvn deploy
