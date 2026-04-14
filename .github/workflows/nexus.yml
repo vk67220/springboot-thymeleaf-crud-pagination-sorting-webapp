@@ -1,4 +1,4 @@
-name: Java CI with Nexus
+name: Java CI with Nexus (Self-Hosted + MySQL)
 
 on:
   workflow_dispatch
@@ -40,11 +40,36 @@ jobs:
       - name: Check Maven
         run: mvn -version
 
+      # 🔥 Start MySQL (Docker)
+      - name: Start MySQL Container
+        run: |
+          docker rm -f mysql || true
+          docker run -d \
+            --name mysql \
+            -e MYSQL_ROOT_PASSWORD=root \
+            -e MYSQL_DATABASE=testdb \
+            -p 3306:3306 \
+            mysql:8
+
+      # 🔥 Wait for MySQL
+      - name: Wait for MySQL
+        run: |
+          for i in {1..15}; do
+            if nc -z 127.0.0.1 3306; then
+              echo "MySQL is ready!"
+              exit 0
+            fi
+            echo "Waiting for MySQL..."
+            sleep 5
+          done
+          echo "MySQL failed to start"
+          exit 1
+
       # 🔹 Compile
       - name: Compile
         run: mvn compile
 
-      # 🔹 Test
+      # 🔹 Test (NOW WILL PASS)
       - name: Test
         run: mvn test
 
