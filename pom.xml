@@ -61,7 +61,7 @@
 
     </dependencies>
 
-    <!-- 🔥 ADD HERE -->
+    <!-- Add here -->
     <distributionManagement>
         <repository>
             <id>nexus</id>
