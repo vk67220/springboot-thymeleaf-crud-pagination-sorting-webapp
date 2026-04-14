@@ -1,4 +1,4 @@
-name: crud pagination sorting webapp CI with Nexus
+name: Java CI with Nexus
 
 on:
   workflow_dispatch
@@ -13,27 +13,46 @@ jobs:
 
     steps:
 
+      # 🔹 Checkout
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 🔹 Setup Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
+      # 🔥 Install Maven ONLY IF NOT PRESENT
+      - name: Install Maven (if not exists)
+        run: |
+          if ! command -v mvn &> /dev/null
+          then
+            echo "Maven not found. Installing..."
+            sudo apt update
+            sudo apt install maven -y
+          else
+            echo "Maven already installed"
+          fi
+
+      # 🔹 Verify Maven
       - name: Check Maven
         run: mvn -version
 
+      # 🔹 Compile
       - name: Compile
         run: mvn compile
 
+      # 🔹 Test
       - name: Test
         run: mvn test
 
+      # 🔹 Package
       - name: Package
         run: mvn package
 
+      # 🔹 Create settings.xml
       - name: Create Maven settings.xml
         run: |
           mkdir -p ~/.m2
@@ -49,5 +68,6 @@ jobs:
           </settings>
           EOF
 
+      # 🔹 Deploy
       - name: Deploy to Nexus
         run: mvn deploy
