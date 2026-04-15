@@ -1,0 +1,89 @@
+name: Java CI with Nexus (GitHub Hosted)
+
+on:
+  workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+      NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: testdb
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+
+      # 🔹 Checkout
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 🔹 Java Setup
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 🔹 Maven (already available)
+      - name: Check Maven
+        run: mvn -version
+
+      # 🔥 Wait for MySQL (service)
+      - name: Wait for MySQL
+        run: |
+          for i in {1..10}; do
+            nc -z 127.0.0.1 3306 && echo "MySQL ready" && exit 0
+            echo "Waiting for MySQL..."
+            sleep 5
+          done
+          echo "MySQL failed"
+          exit 1
+
+      # 🔹 Compile
+      - name: Compile
+        run: mvn compile
+
+      # 🔥 Auto Version (Fix Nexus issue)
+      - name: Update Version
+        run: |
+          VERSION="0.0.${GITHUB_RUN_NUMBER}"
+          echo "Version: $VERSION"
+          mvn versions:set -DnewVersion=$VERSION
+
+      # 🔹 Package (skip tests)
+      - name: Package
+        run: mvn package -DskipTests
+
+      # 🔹 Create Maven settings.xml
+      - name: Create Maven settings.xml
+        run: |
+          mkdir -p ~/.m2
+          cat <<EOF > ~/.m2/settings.xml
+          <settings>
+            <servers>
+              <server>
+                <id>nexus</id>
+                <username>${NEXUS_USERNAME}</username>
+                <password>${NEXUS_PASSWORD}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+      # 🔹 Deploy
+      - name: Deploy to Nexus
+        run: mvn deploy -DskipTests
