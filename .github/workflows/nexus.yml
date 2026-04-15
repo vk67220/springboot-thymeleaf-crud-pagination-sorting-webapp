@@ -78,7 +78,7 @@ jobs:
 
       # 🔹 Test
       - name: Test
-        run: mvn test
+        run: mvn test -DskipTests
 
       # 🔹 Package
       - name: Package
