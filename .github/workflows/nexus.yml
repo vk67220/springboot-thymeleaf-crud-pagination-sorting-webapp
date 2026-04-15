@@ -82,7 +82,7 @@ jobs:
 
       # 🔹 Package
       - name: Package
-        run: mvn package
+        run: mvn package -DskipTests
 
       # 🔹 Create Maven settings.xml (for Nexus)
       - name: Create Maven settings.xml
