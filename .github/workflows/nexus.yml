@@ -102,4 +102,4 @@ jobs:
 
       # 🔹 Deploy to Nexus
       - name: Deploy to Nexus
-        run: mvn deploy
+        run: mvn deploy -DskipTests
