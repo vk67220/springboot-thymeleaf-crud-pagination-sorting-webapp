@@ -76,6 +76,12 @@ jobs:
       - name: Compile
         run: mvn compile
 
+      # 🔥 FIX: Auto version
+      - name: Update Version (Auto Increment)
+        run: |
+         VERSION="0.0.${GITHUB_RUN_NUMBER}"
+         mvn versions:set -DnewVersion=$VERSION
+
       # 🔹 Test
       - name: Test
         run: mvn test -DskipTests
