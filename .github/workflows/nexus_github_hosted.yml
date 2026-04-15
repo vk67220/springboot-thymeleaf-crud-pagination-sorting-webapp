@@ -38,11 +38,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 🔹 Maven (already available)
+      # 🔹 Check Maven
       - name: Check Maven
         run: mvn -version
 
-      # 🔥 Wait for MySQL (service)
+      # 🔥 Wait for MySQL
       - name: Wait for MySQL
         run: |
           for i in {1..10}; do
@@ -57,18 +57,23 @@ jobs:
       - name: Compile
         run: mvn compile
 
-      # 🔥 Auto Version (Fix Nexus issue)
+      # 🔥 FIX 1: Update + COMMIT version
       - name: Update Version
         run: |
           VERSION="0.0.${GITHUB_RUN_NUMBER}"
-          echo "Version: $VERSION"
+          echo "Using version: $VERSION"
           mvn versions:set -DnewVersion=$VERSION
+          mvn versions:commit
 
-      # 🔹 Package (skip tests)
+      # 🔥 FIX 2: Verify version (debug)
+      - name: Verify Version
+        run: mvn help:evaluate -Dexpression=project.version -q -DforceStdout
+
+      # 🔥 FIX 3: Clean build (IMPORTANT)
       - name: Package
-        run: mvn package -DskipTests
+        run: mvn clean package -DskipTests
 
-      # 🔹 Create Maven settings.xml
+      # 🔹 Create settings.xml
       - name: Create Maven settings.xml
         run: |
           mkdir -p ~/.m2
