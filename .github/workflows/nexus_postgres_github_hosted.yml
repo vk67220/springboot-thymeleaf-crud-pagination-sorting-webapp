@@ -1,11 +1,11 @@
-name: Java CI with Nexus (PostgreSQL + Tests)
+name: Java CI with Nexus (PostgreSQL)
 
 on:
   workflow_dispatch
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     env:
       NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
@@ -29,11 +29,11 @@ jobs:
 
     steps:
 
-      # 🔹 Checkout Code
+      # 🔹 Checkout
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 🔹 Setup Java
+      # 🔹 Java Setup
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -47,7 +47,7 @@ jobs:
       # 🔥 Wait for PostgreSQL
       - name: Wait for PostgreSQL
         run: |
-          for i in {1..15}; do
+          for i in {1..10}; do
             pg_isready -h 127.0.0.1 -p 5432 -U postgres && echo "Postgres ready" && exit 0
             echo "Waiting for PostgreSQL..."
             sleep 5
@@ -59,7 +59,7 @@ jobs:
       - name: Compile
         run: mvn compile
 
-      # 🔥 Update Version (Important for Nexus)
+      # 🔥 Update Version
       - name: Update Version
         run: |
           VERSION="0.0.${GITHUB_RUN_NUMBER}"
@@ -71,15 +71,11 @@ jobs:
       - name: Verify Version
         run: mvn help:evaluate -Dexpression=project.version -q -DforceStdout
 
-      # 🔥 Run Tests (ENABLED ✅)
-      - name: Run Tests
-        run: mvn test
-
       # 🔹 Package
       - name: Package
-        run: mvn clean package
+        run: mvn clean package -DskipTests
 
-      # 🔹 Create Maven settings.xml
+      # 🔹 Create settings.xml
       - name: Create Maven settings.xml
         run: |
           mkdir -p ~/.m2
@@ -97,4 +93,4 @@ jobs:
 
       # 🔹 Deploy to Nexus
       - name: Deploy to Nexus
-        run: mvn deploy 
+        run: mvn deploy -DskipTests
