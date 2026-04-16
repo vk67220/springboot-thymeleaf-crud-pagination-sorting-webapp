@@ -1,0 +1,100 @@
+name: Java CI with Nexus (PostgreSQL + Tests)
+
+on:
+  workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+      NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+
+    # 🔥 PostgreSQL Service
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: root
+          POSTGRES_DB: employees
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+
+      # 🔹 Checkout Code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 🔹 Setup Java
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 🔹 Check Maven
+      - name: Check Maven
+        run: mvn -version
+
+      # 🔥 Wait for PostgreSQL
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..15}; do
+            pg_isready -h 127.0.0.1 -p 5432 -U postgres && echo "Postgres ready" && exit 0
+            echo "Waiting for PostgreSQL..."
+            sleep 5
+          done
+          echo "PostgreSQL failed"
+          exit 1
+
+      # 🔹 Compile
+      - name: Compile
+        run: mvn compile
+
+      # 🔥 Update Version (Important for Nexus)
+      - name: Update Version
+        run: |
+          VERSION="0.0.${GITHUB_RUN_NUMBER}"
+          echo "Using version: $VERSION"
+          mvn versions:set -DnewVersion=$VERSION
+          mvn versions:commit
+
+      # 🔹 Verify Version
+      - name: Verify Version
+        run: mvn help:evaluate -Dexpression=project.version -q -DforceStdout
+
+      # 🔥 Run Tests (ENABLED ✅)
+      - name: Run Tests
+        run: mvn test
+
+      # 🔹 Package
+      - name: Package
+        run: mvn clean package
+
+      # 🔹 Create Maven settings.xml
+      - name: Create Maven settings.xml
+        run: |
+          mkdir -p ~/.m2
+          cat <<EOF > ~/.m2/settings.xml
+          <settings>
+            <servers>
+              <server>
+                <id>nexus</id>
+                <username>${NEXUS_USERNAME}</username>
+                <password>${NEXUS_PASSWORD}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+      # 🔹 Deploy to Nexus
+      - name: Deploy to Nexus
+        run: mvn deploy 
