@@ -80,7 +80,7 @@
         <repository>
             <id>nexus</id>
             <name>Nexus Releases</name>
-            <url>http://3.93.31.234:8081/repository/maven-releases/</url>
+            <url>http://54.90.232.227:8081/repository/maven-releases/</url>
         </repository>
 
         <!-- Snapshots (your current version uses this) -->
