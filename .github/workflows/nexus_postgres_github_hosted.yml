@@ -1,4 +1,4 @@
-name: Java CI with Nexus (PostgreSQL)
+name: Java CI with Nexus (PostgreSQL - Optimized)
 
 on:
   workflow_dispatch
@@ -11,7 +11,6 @@ jobs:
       NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
       NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
 
-    # 🔥 PostgreSQL Service
     services:
       postgres:
         image: postgres:15
@@ -33,7 +32,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 🔹 Java Setup
+      # 🔹 Setup Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -44,10 +43,22 @@ jobs:
       - name: Check Maven
         run: mvn -version
 
+      # 🔥 Install PostgreSQL client ONLY IF NOT EXISTS
+      - name: Install PostgreSQL Client (if not exists)
+        run: |
+          if ! command -v pg_isready &> /dev/null
+          then
+            echo "PostgreSQL client not found. Installing..."
+            sudo apt update
+            sudo apt install -y postgresql-client
+          else
+            echo "PostgreSQL client already installed"
+          fi
+
       # 🔥 Wait for PostgreSQL
       - name: Wait for PostgreSQL
         run: |
-          for i in {1..10}; do
+          for i in {1..15}; do
             pg_isready -h 127.0.0.1 -p 5432 -U postgres && echo "Postgres ready" && exit 0
             echo "Waiting for PostgreSQL..."
             sleep 5
