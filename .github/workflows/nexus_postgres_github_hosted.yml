@@ -1,4 +1,4 @@
-name: Java CI with Nexus (PostgreSQL - Optimized)
+name: Java CI with Nexus (PostgreSQL - Production Ready)
 
 on:
   workflow_dispatch
@@ -39,27 +39,27 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 🔹 Check Maven
+      # 🔹 Check Maven (self-hosted should already have)
       - name: Check Maven
         run: mvn -version
 
-      # 🔥 Install PostgreSQL client ONLY IF NOT EXISTS
-      - name: Install PostgreSQL Client (if not exists)
+      # 🔥 Install netcat ONLY if missing (for DB check)
+      - name: Install netcat (if not exists)
         run: |
-          if ! command -v pg_isready &> /dev/null
+          if ! command -v nc &> /dev/null
           then
-            echo "PostgreSQL client not found. Installing..."
+            echo "Installing netcat..."
             sudo apt update
-            sudo apt install -y postgresql-client
+            sudo apt install -y netcat
           else
-            echo "PostgreSQL client already installed"
+            echo "netcat already installed"
           fi
 
-      # 🔥 Wait for PostgreSQL
+      # 🔥 Wait for PostgreSQL (RELIABLE)
       - name: Wait for PostgreSQL
         run: |
-          for i in {1..15}; do
-            pg_isready -h 127.0.0.1 -p 5432 -U postgres && echo "Postgres ready" && exit 0
+          for i in {1..20}; do
+            nc -z 127.0.0.1 5432 && echo "Postgres ready" && exit 0
             echo "Waiting for PostgreSQL..."
             sleep 5
           done
@@ -68,9 +68,9 @@ jobs:
 
       # 🔹 Compile
       - name: Compile
-        run: mvn compile
+        run: mvn clean compile
 
-      # 🔥 Update Version
+      # 🔥 Auto Version Fix (Nexus redeploy issue)
       - name: Update Version
         run: |
           VERSION="0.0.${GITHUB_RUN_NUMBER}"
@@ -86,7 +86,7 @@ jobs:
       - name: Package
         run: mvn clean package -DskipTests
 
-      # 🔹 Create settings.xml
+      # 🔹 Create Maven settings.xml
       - name: Create Maven settings.xml
         run: |
           mkdir -p ~/.m2
