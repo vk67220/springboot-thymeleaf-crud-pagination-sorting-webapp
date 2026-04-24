@@ -70,20 +70,27 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
 
+            <!-- 🔥 SonarQube Plugin -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>3.9.1.2184</version>
+            </plugin>
+
         </plugins>
     </build>
 
-    <!--  NEXUS CONFIGURATION -->
+    <!-- NEXUS CONFIGURATION -->
     <distributionManagement>
 
-        <!-- Releases (non-snapshot versions) -->
+        <!-- Releases -->
         <repository>
             <id>nexus</id>
             <name>Nexus Releases</name>
             <url>http://98.90.195.95:8081/repository/maven-releases/</url>
         </repository>
 
-        <!-- Snapshots (your current version uses this) -->
+        <!-- Snapshots -->
         <snapshotRepository>
             <id>nexus</id>
             <name>Nexus Snapshots</name>
