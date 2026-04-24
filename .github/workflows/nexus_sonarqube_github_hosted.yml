@@ -1,13 +1,10 @@
-name: CI Pipeline (Sonar + Nexus - Split Jobs)
+name: CI Pipeline (Sonar + Nexus - Fixed)
 
 on:
   workflow_dispatch
 
 jobs:
 
-  # =========================
-  # 🔥 JOB 1: BUILD + SONAR
-  # =========================
   sonar:
     runs-on: self-hosted
 
@@ -26,30 +23,16 @@ jobs:
           - 5432:5432
 
     steps:
-
-      # 🔹 Checkout
       - uses: actions/checkout@v4
 
-      # 🔹 Java
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 🔹 Wait for DB
-      - name: Wait for PostgreSQL
-        run: |
-          for i in {1..20}; do
-            nc -z 127.0.0.1 5432 && echo "DB ready" && exit 0
-            sleep 5
-          done
-          exit 1
+      - name: Compile + Package
+        run: mvn clean package -DskipTests
 
-      # 🔹 Compile
-      - name: Compile
-        run: mvn clean compile
-
-      # 🔥 SonarQube Scan
       - name: SonarQube Scan
         run: |
           mvn sonar:sonar \
@@ -57,11 +40,6 @@ jobs:
             -Dsonar.host.url=${SONAR_HOST_URL} \
             -Dsonar.login=${SONAR_TOKEN}
 
-      # 🔹 Package (artifact for next job)
-      - name: Package
-        run: mvn clean package -DskipTests
-
-      # 🔥 Upload artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -69,37 +47,29 @@ jobs:
           path: target/*.jar
 
 
-  # =========================
-  # 🚀 JOB 2: NEXUS DEPLOY
-  # =========================
   nexus:
     runs-on: self-hosted
-    needs: sonar   # 👈 dependency
+    needs: sonar
 
     env:
       NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
       NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
 
     steps:
-
-      # 🔹 Checkout (needed for pom.xml)
       - uses: actions/checkout@v4
 
-      # 🔹 Java
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 🔥 Download artifact from previous job
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
           name: app-artifact
           path: target/
 
-      # 🔹 Create settings.xml
-      - name: Create Maven settings.xml
+      - name: Create settings.xml
         run: |
           mkdir -p ~/.m2
           cat <<EOF > ~/.m2/settings.xml
@@ -114,6 +84,7 @@ jobs:
           </settings>
           EOF
 
-      # 🔥 Deploy to Nexus
+      # 🔥 IMPORTANT: force deploy using existing version
       - name: Deploy to Nexus
-        run: mvn deploy -DskipTests
+        run: |
+          mvn deploy -DskipTests -DaltDeploymentRepository=nexus::default::http://98.90.195.95:8081/repository/maven-snapshots/
