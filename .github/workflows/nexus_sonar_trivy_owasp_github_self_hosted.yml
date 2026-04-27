@@ -91,7 +91,7 @@ jobs:
       - name: OWASP Dependency Check
         run: |
           mvn org.owasp:dependency-check-maven:check \
-          -Ddependency-check.skipUpdate=true
+          -DskipUpdates=true
 
       # =========================
       # 🔥 STEP 5: TRIVY STRICT SCAN
