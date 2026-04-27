@@ -1,10 +1,10 @@
-name: CI/CD Pipeline using Nexus & Sonar (Final)
+name: CI Pipeline (Sonar + OWASP + Trivy + Nexus - Final)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-sonar-deploy:
+  security-pipeline:
     runs-on: self-hosted
 
     env:
@@ -12,16 +12,6 @@ jobs:
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
       NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
       NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: root
-          POSTGRES_DB: employees
-        ports:
-          - 5432:5432
 
     steps:
 
@@ -36,7 +26,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 🔹 Configure Maven for Nexus
+      # 🔹 Configure Maven (Nexus auth)
       - name: Configure Maven settings.xml
         run: |
           mkdir -p ~/.m2
@@ -52,18 +42,8 @@ jobs:
           </settings>
           EOF
 
-      # 🔹 Wait for PostgreSQL
-      - name: Wait for PostgreSQL
-        run: |
-          for i in {1..20}; do
-            nc -z 127.0.0.1 5432 && echo "DB ready" && exit 0
-            echo "Waiting for DB..."
-            sleep 5
-          done
-          exit 1
-
       # =========================
-      # 🔥 STEP 0: AUTO VERSIONING (FIX FOR NEXUS ERROR)
+      # 🔥 STEP 0: AUTO VERSIONING
       # =========================
       - name: Set Dynamic Version
         run: |
@@ -85,24 +65,47 @@ jobs:
         run: mvn test -DskipTests
 
       # =========================
-      # 🔥 STEP 3: PACKAGE
+      # 🔥 STEP 3: SONARQUBE + QUALITY GATE
+      # =========================
+      - name: SonarQube Scan
+        run: |
+          mvn sonar:sonar \
+            -Dsonar.projectKey=employees \
+            -Dsonar.projectName=employees \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.login=${SONAR_TOKEN} \
+            -Dsonar.qualitygate.wait=true
+
+      # =========================
+      # 🔥 STEP 4: OWASP DEPENDENCY CHECK
+      # =========================
+      - name: OWASP Dependency Check
+        run: |
+          mvn org.owasp:dependency-check-maven:check
+
+      # =========================
+      # 🔥 STEP 5: TRIVY STRICT SCAN
+      # =========================
+      - name: Trivy Scan
+        run: |
+          trivy fs . --exit-code 1 --severity HIGH,CRITICAL
+          trivy fs . > trivyfs.txt
+
+      # 🔹 Upload Trivy Report
+      - name: Upload Trivy Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivyfs.txt
+
+      # =========================
+      # 🔥 STEP 6: PACKAGE
       # =========================
       - name: Package
         run: mvn package -DskipTests
 
       # =========================
-      # 🔥 STEP 4: SONARQUBE SCAN
-      # =========================
-      - name: SonarQube Scan
-        run: |
-          mvn sonar:sonar \
-            -Dsonar.projectKey=my-project \
-            -Dsonar.host.url=${SONAR_HOST_URL} \
-            -Dsonar.login=${SONAR_TOKEN}
-            -Dsonar.qualitygate.wait=true     # Wait for quality gate result
-
-      # =========================
-      # 🔥 STEP 5: DEPLOY TO NEXUS
+      # 🚀 STEP 7: DEPLOY TO NEXUS
       # =========================
       - name: Deploy to Nexus
         run: mvn deploy -DskipTests
