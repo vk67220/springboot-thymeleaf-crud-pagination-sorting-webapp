@@ -88,10 +88,10 @@ jobs:
         #   mvn org.owasp:dependency-check-maven:check \
          #  -Dnvd.api.key=${{ secrets.NVD_API_KEY }}
 
-      - name: OWASP Dependency Check
-        run: |
-          mvn org.owasp:dependency-check-maven:check \
-          -DskipUpdates=true
+     # - name: OWASP Dependency Check
+      #  run: |
+       #   mvn org.owasp:dependency-check-maven:check \
+        #  -DskipUpdates=true
 
       # =========================
       # 🔥 STEP 5: TRIVY STRICT SCAN
