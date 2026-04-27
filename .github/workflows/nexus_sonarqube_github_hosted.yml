@@ -1,16 +1,17 @@
-name: CI Pipeline (Sonar + Nexus - Fixed)
+name: CI/CD Pipeline (Step-wise)
 
 on:
-  workflow_dispatch
+  workflow_dispatch:
 
 jobs:
-
-  sonar:
+  build-sonar-deploy:
     runs-on: self-hosted
 
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+      NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
 
     services:
       postgres:
@@ -23,53 +24,18 @@ jobs:
           - 5432:5432
 
     steps:
+
+      # 🔹 Checkout
       - uses: actions/checkout@v4
 
+      # 🔹 Java setup
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Compile + Package
-        run: mvn clean package -DskipTests
-
-      - name: SonarQube Scan
-        run: |
-          mvn sonar:sonar \
-            -Dsonar.projectKey=my-project \
-            -Dsonar.host.url=${SONAR_HOST_URL} \
-            -Dsonar.login=${SONAR_TOKEN}
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-artifact
-          path: target/*.jar
-
-
-  nexus:
-    runs-on: self-hosted
-    needs: sonar
-
-    env:
-      NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
-      NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: app-artifact
-          path: target/
-
-      - name: Create settings.xml
+      # 🔹 Maven settings for Nexus
+      - name: Configure Maven
         run: |
           mkdir -p ~/.m2
           cat <<EOF > ~/.m2/settings.xml
@@ -84,8 +50,45 @@ jobs:
           </settings>
           EOF
 
-      # 🔥 IMPORTANT: force deploy using existing version
-      - name: Deploy to Nexus
+      # 🔹 Wait for PostgreSQL
+      - name: Wait for PostgreSQL
         run: |
-          mvn deploy -DskipTests 
-        #-DaltDeploymentRepository=nexus::default::http://98.84.179.215:8081/repository/maven-snapshots/
+          for i in {1..20}; do
+            nc -z 127.0.0.1 5432 && echo "DB ready" && exit 0
+            sleep 5
+          done
+          exit 1
+
+      # =========================
+      # 🔥 STEP 1: BUILD
+      # =========================
+      - name: Build
+        run: mvn clean compile
+
+      # =========================
+      # 🔥 STEP 2: TEST
+      # =========================
+      - name: Test
+        run: mvn test
+
+      # =========================
+      # 🔥 STEP 3: PACKAGE
+      # =========================
+      - name: Package
+        run: mvn package -DskipTests
+
+      # =========================
+      # 🔥 STEP 4: SONARQUBE
+      # =========================
+      - name: SonarQube Scan
+        run: |
+          mvn sonar:sonar \
+            -Dsonar.projectKey=my-project \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.login=${SONAR_TOKEN}
+
+      # =========================
+      # 🔥 STEP 5: DEPLOY TO NEXUS
+      # =========================
+      - name: Deploy to Nexus
+        run: mvn deploy -DskipTests
