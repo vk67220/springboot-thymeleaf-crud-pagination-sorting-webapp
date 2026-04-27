@@ -1,4 +1,4 @@
-name: CI/CD Pipeline using nexus&sonar (Step-wise)
+name: CI/CD Pipeline using Nexus & Sonar (Final)
 
 on:
   workflow_dispatch:
@@ -26,16 +26,18 @@ jobs:
     steps:
 
       # 🔹 Checkout
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      # 🔹 Java setup
-      - uses: actions/setup-java@v4
+      # 🔹 Setup Java
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 🔹 Maven settings for Nexus
-      - name: Configure Maven
+      # 🔹 Configure Maven for Nexus
+      - name: Configure Maven settings.xml
         run: |
           mkdir -p ~/.m2
           cat <<EOF > ~/.m2/settings.xml
@@ -55,9 +57,20 @@ jobs:
         run: |
           for i in {1..20}; do
             nc -z 127.0.0.1 5432 && echo "DB ready" && exit 0
+            echo "Waiting for DB..."
             sleep 5
           done
           exit 1
+
+      # =========================
+      # 🔥 STEP 0: AUTO VERSIONING (FIX FOR NEXUS ERROR)
+      # =========================
+      - name: Set Dynamic Version
+        run: |
+          VERSION=0.0.${GITHUB_RUN_NUMBER}
+          echo "Using version: $VERSION"
+          mvn versions:set -DnewVersion=$VERSION
+          mvn versions:commit
 
       # =========================
       # 🔥 STEP 1: BUILD
@@ -69,7 +82,7 @@ jobs:
       # 🔥 STEP 2: TEST
       # =========================
       - name: Test
-        run: mvn test -DskipTests
+        run: mvn test
 
       # =========================
       # 🔥 STEP 3: PACKAGE
@@ -78,7 +91,7 @@ jobs:
         run: mvn package -DskipTests
 
       # =========================
-      # 🔥 STEP 4: SONARQUBE
+      # 🔥 STEP 4: SONARQUBE SCAN
       # =========================
       - name: SonarQube Scan
         run: |
