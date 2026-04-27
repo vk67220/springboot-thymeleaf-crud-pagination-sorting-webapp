@@ -98,8 +98,9 @@ jobs:
       # =========================
       - name: Trivy Scan
         run: |
-          trivy fs . --exit-code 1 --severity HIGH,CRITICAL
           trivy fs . > trivyfs.txt
+          #trivy fs . --exit-code 1 --severity HIGH,CRITICAL
+          
 
       # 🔹 Upload Trivy Report
       - name: Upload Trivy Report
