@@ -79,9 +79,19 @@ jobs:
       # =========================
       # 🔥 STEP 4: OWASP DEPENDENCY CHECK
       # =========================
+      #- name: OWASP Dependency Check
+       # run: |
+        #  mvn org.owasp:dependency-check-maven:check
+
+      #- name: OWASP Dependency Check
+       #  run: |
+        #   mvn org.owasp:dependency-check-maven:check \
+         #  -Dnvd.api.key=${{ secrets.NVD_API_KEY }}
+
       - name: OWASP Dependency Check
         run: |
-          mvn org.owasp:dependency-check-maven:check
+          mvn org.owasp:dependency-check-maven:check \
+          -Ddependency-check.skipUpdate=true
 
       # =========================
       # 🔥 STEP 5: TRIVY STRICT SCAN
