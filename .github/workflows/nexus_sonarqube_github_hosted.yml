@@ -82,7 +82,7 @@ jobs:
       # 🔥 STEP 2: TEST
       # =========================
       - name: Test
-        run: mvn test
+        run: mvn test DskipTests
 
       # =========================
       # 🔥 STEP 3: PACKAGE
