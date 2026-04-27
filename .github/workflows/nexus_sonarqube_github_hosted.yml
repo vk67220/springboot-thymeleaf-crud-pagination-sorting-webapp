@@ -87,4 +87,5 @@ jobs:
       # 🔥 IMPORTANT: force deploy using existing version
       - name: Deploy to Nexus
         run: |
-          mvn deploy -DskipTests -DaltDeploymentRepository=nexus::default::http://98.84.179.215:8081/repository/maven-snapshots/
+          mvn deploy -DskipTests 
+        #-DaltDeploymentRepository=nexus::default::http://98.84.179.215:8081/repository/maven-snapshots/
