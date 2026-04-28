@@ -96,6 +96,12 @@ jobs:
             -Dnvd.api.key=${{ secrets.NVD_API_KEY }} \
             -DskipUpdates=true
 
+      # Upload OWASP Report
+      - name: Upload OWASP Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-report
+          path: target/dependency-check-report.html
       # =========================
       # 🔥 STEP 6: TRIVY SCAN
       # =========================
