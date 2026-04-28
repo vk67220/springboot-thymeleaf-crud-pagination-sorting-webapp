@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  security-pipeline:
+  build:
     runs-on: self-hosted
 
     env:
@@ -62,7 +62,7 @@ jobs:
       # 🔥 STEP 2: TEST
       # =========================
       - name: Test
-        run: mvn test -DskipTests
+        run: mvn test
 
       # =========================
       # 🔥 STEP 3: SONARQUBE + QUALITY GATE
@@ -77,30 +77,33 @@ jobs:
             -Dsonar.qualitygate.wait=true
 
       # =========================
-      # 🔥 STEP 4: OWASP DEPENDENCY CHECK
+      # 🔥 STEP 4: CACHE OWASP DB
       # =========================
-      #- name: OWASP Dependency Check
-       # run: |
-        #  mvn org.owasp:dependency-check-maven:check
-
-      #- name: OWASP Dependency Check
-       #  run: |
-        #   mvn org.owasp:dependency-check-maven:check \
-         #  -Dnvd.api.key=${{ secrets.NVD_API_KEY }}
-
-     # - name: OWASP Dependency Check
-      #  run: |
-       #   mvn org.owasp:dependency-check-maven:check \
-        #  -DskipUpdates=true
+      - name: Cache OWASP DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: owasp-db-${{ runner.os }}
+          restore-keys: |
+            owasp-db-
 
       # =========================
-      # 🔥 STEP 5: TRIVY STRICT SCAN
+      # 🔥 STEP 5: OWASP FAST SCAN
+      # =========================
+      - name: OWASP Dependency Check
+        run: |
+          mvn org.owasp:dependency-check-maven:check \
+            -Dnvd.api.key=${{ secrets.NVD_API_KEY }} \
+            -DskipUpdates=true
+
+      # =========================
+      # 🔥 STEP 6: TRIVY SCAN
       # =========================
       - name: Trivy Scan
         run: |
           trivy fs . > trivyfs.txt
-          #trivy fs . --exit-code 1 --severity HIGH,CRITICAL
-          
+          # Optional strict mode:
+          # trivy fs . --exit-code 1 --severity HIGH,CRITICAL
 
       # 🔹 Upload Trivy Report
       - name: Upload Trivy Report
@@ -110,13 +113,13 @@ jobs:
           path: trivyfs.txt
 
       # =========================
-      # 🔥 STEP 6: PACKAGE
+      # 🔥 STEP 7: PACKAGE
       # =========================
       - name: Package
         run: mvn package -DskipTests
 
       # =========================
-      # 🚀 STEP 7: DEPLOY TO NEXUS
+      # 🚀 STEP 8: DEPLOY TO NEXUS
       # =========================
       - name: Deploy to Nexus
         run: mvn deploy -DskipTests
