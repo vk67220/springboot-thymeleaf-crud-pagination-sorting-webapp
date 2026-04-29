@@ -46,13 +46,16 @@ jobs:
       - name: Cache OWASP DB
         uses: actions/cache@v4
         with:
-          path: ~/.m2/repository/org/owasp/dependency-check-data
+          path: ~/.dependency-check
           key: owasp-db-${{ runner.os }}
+          restore-keys: |
+            owasp-db-
 
       - name: OWASP Scan
         run: |
           mvn org.owasp:dependency-check-maven:check \
             -Dnvd.api.key=${{ secrets.NVD_API_KEY }} \
+            -DdataDirectory=$HOME/.dependency-check \
             -DskipUpdates=true
 
       # 🔥 Trivy FS
