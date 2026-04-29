@@ -94,7 +94,7 @@ jobs:
         run: |
           mvn org.owasp:dependency-check-maven:check \
             -Dnvd.api.key=${{ secrets.NVD_API_KEY }} \
-            -DskipUpdates=true
+            -DskipUpdates=false
 
       # Upload OWASP Report
       - name: Upload OWASP Report
