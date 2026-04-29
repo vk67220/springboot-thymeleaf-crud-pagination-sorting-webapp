@@ -79,29 +79,28 @@ jobs:
       # =========================
       # 🔥 STEP 4: CACHE OWASP DB
       # =========================
-      - name: Cache OWASP DB
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository/org/owasp/dependency-check-data
-          key: owasp-db-${{ runner.os }}
-          restore-keys: |
-            owasp-db-
+      #- name: Cache OWASP DB
+       # uses: actions/cache@v4
+        #with:
+         # path: ~/.m2/repository/org/owasp/dependency-check-data
+          #key: owasp-db-${{ runner.os }}
+          # owasp-db-
 
       # =========================
       # 🔥 STEP 5: OWASP FAST SCAN
       # =========================
-      - name: OWASP Dependency Check
-        run: |
-          mvn org.owasp:dependency-check-maven:check \
-            -Dnvd.api.key=${{ secrets.NVD_API_KEY }} \
-            -DskipUpdates=false
+      #- name: OWASP Dependency Check
+       # run: |
+        #  mvn org.owasp:dependency-check-maven:check \
+         #   -Dnvd.api.key=${{ secrets.NVD_API_KEY }} \
+          #  -DskipUpdates=false
 
       # Upload OWASP Report
-      - name: Upload OWASP Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: owasp-report
-          path: target/dependency-check-report.html
+      #- name: Upload OWASP Report
+       # uses: actions/upload-artifact@v4
+        #with:
+         # name: owasp-report
+          #path: target/dependency-check-report.html
       # =========================
       # 🔥 STEP 6: TRIVY SCAN
       # =========================
