@@ -1,0 +1,99 @@
+name: DevSecOps Pipeline (Local + DockerHub Push)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  devsecops:
+    runs-on: self-hosted
+
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
+    steps:
+
+      # 🔹 Checkout
+      - uses: actions/checkout@v4
+
+      # 🔹 Java setup
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 🔥 Version
+      - name: Set Version
+        run: |
+          VERSION=0.0.${GITHUB_RUN_NUMBER}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      # 🔥 Build
+      - name: Build
+        run: mvn clean package -DskipTests
+
+      # 🔥 Sonar
+      - name: Sonar Scan
+        run: |
+          mvn sonar:sonar \
+            -Dsonar.projectKey=employees \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.login=${SONAR_TOKEN}
+
+      # 🔥 OWASP
+      - name: Cache OWASP DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: owasp-db-${{ runner.os }}
+
+      - name: OWASP Scan
+        run: |
+          mvn org.owasp:dependency-check-maven:check \
+            -Dnvd.api.key=${{ secrets.NVD_API_KEY }} \
+            -DskipUpdates=true
+
+      # 🔥 Trivy FS
+      - name: Trivy FS Scan
+        run: |
+          trivy fs . --exit-code 1 --severity HIGH,CRITICAL
+
+      # 🔥 Docker Build (LOCAL)
+      - name: Build Docker Image
+        run: |
+          docker build -t employees-app:${VERSION} .
+          docker tag employees-app:${VERSION} employees-app:latest
+
+      # 🔥 Trivy Image Scan
+      - name: Trivy Image Scan
+        run: |
+          trivy image employees-app:${VERSION} --exit-code 1 --severity HIGH,CRITICAL
+
+      # 🔥 Docker Login
+      - name: Docker Login
+        run: |
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
+      # 🔥 Tag for DockerHub
+      - name: Tag Image for DockerHub
+        run: |
+          docker tag employees-app:${VERSION} $DOCKER_USERNAME/employees-app:${VERSION}
+          docker tag employees-app:${VERSION} $DOCKER_USERNAME/employees-app:latest
+
+      # 🔥 Push to DockerHub
+      - name: Push Image
+        run: |
+          docker push $DOCKER_USERNAME/employees-app:${VERSION}
+          docker push $DOCKER_USERNAME/employees-app:latest
+
+      # 🚀 Local Deploy (NO pull)
+      - name: Deploy Containers
+        run: |
+          docker-compose down || true
+          docker-compose up -d
+
+      # 🔍 Verify
+      - name: Verify
+        run: docker ps
