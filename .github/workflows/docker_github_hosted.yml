@@ -97,8 +97,8 @@ jobs:
       # 🚀 Local Deploy (NO pull)
       - name: Deploy Containers
         run: |
-          docker-compose down || true
-          docker-compose up -d
+          docker compose down || true
+          docker compose up -d
 
       # 🔍 Verify
       - name: Verify
