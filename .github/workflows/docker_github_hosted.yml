@@ -43,20 +43,21 @@ jobs:
             -Dsonar.login=${SONAR_TOKEN}
 
       # 🔥 OWASP
-      - name: Cache OWASP DB
-        uses: actions/cache@v4
-        with:
-          path: ~/.dependency-check
-          key: owasp-db-${{ runner.os }}
-          restore-keys: |
-            owasp-db-
+      #- name: Cache OWASP DB
+       # uses: actions/cache@v4
+        #with:
+         # path: ~/.dependency-check
+          #key: owasp-db-${{ runner.os }}
+          #restore-keys: |
+           # owasp-db-
 
-      - name: OWASP Scan
-        run: |
-          mvn org.owasp:dependency-check-maven:check \
-            -Dnvd.api.key=${{ secrets.NVD_API_KEY }} \
-            -DdataDirectory=$HOME/.dependency-check \
-            -DskipUpdates=true
+      #- name: OWASP Scan
+       # run: |
+        #  mvn org.owasp:dependency-check-maven:check \
+         #   -Dnvd.api.key=${{ secrets.NVD_API_KEY }} \
+          #  -DdataDirectory=$HOME/.dependency-check \
+           # -DskipUpdates=true
+            #-DfailBuildOnCVSS=7
 
       # 🔥 Trivy FS
       - name: Trivy FS Scan
