@@ -1,0 +1,121 @@
+name: DevSecOps Pipeline (Local + ECR Push)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  devsecops:
+    runs-on: self-hosted
+
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+      ECR_REPO: employees-app-dev
+
+    steps:
+
+      # 🔹 Checkout
+      - uses: actions/checkout@v4
+
+      # 🔹 Java setup
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 🔥 Version
+      - name: Set Version
+        run: |
+          VERSION=0.0.${GITHUB_RUN_NUMBER}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      # 🔥 Build
+      - name: Build
+        run: mvn clean package -DskipTests
+
+      # 🔥 Sonar
+      - name: Sonar Scan
+        run: |
+          mvn sonar:sonar \
+            -Dsonar.projectKey=employees \
+            -Dsonar.projectName=employees \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.login=${SONAR_TOKEN} \
+            -Dsonar.qualitygate.wait=true
+
+      # 🔥 Trivy FS Scan
+      - name: Trivy FS Scan
+        run: |
+          trivy fs . > trivyfs.txt
+
+      # 🔥 Docker Build
+      - name: Build Docker Image
+        run: |
+          docker build -t employees-app:${VERSION} .
+          docker tag employees-app:${VERSION} employees-app:latest
+
+      # 🔥 Trivy Image Scan
+      - name: Trivy Image Scan
+        run: |
+          trivy image employees-app:${VERSION}
+
+      # =========================
+      # 🔥 CONFIGURE AWS
+      # =========================
+      - name: Configure AWS Credentials
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set region ${{ secrets.AWS_REGION }}
+
+      # =========================
+      # 🔥 LOGIN TO ECR
+      # =========================
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION \
+          | docker login \
+          --username AWS \
+          --password-stdin \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      # =========================
+      # 🔥 TAG IMAGE FOR ECR
+      # =========================
+      - name: Tag Image for ECR
+        run: |
+          docker tag employees-app:${VERSION} \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}
+
+          docker tag employees-app:${VERSION} \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:latest
+
+      # =========================
+      # 🔥 PUSH IMAGE TO ECR
+      # =========================
+      - name: Push Image to ECR
+        run: |
+          docker push \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}
+
+          docker push \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:latest
+
+      # 🚀 Local Deploy
+      - name: Deploy Containers
+        run: |
+          docker compose down || true
+          docker compose up -d
+
+      # 🔍 Verify
+      - name: Verify Running Containers
+        run: docker ps
+
+      # 🔥 Cleanup old images
+      - name: Cleanup Docker Images
+        run: |
+          docker image prune -a -f

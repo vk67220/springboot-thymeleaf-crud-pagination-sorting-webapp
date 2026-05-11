@@ -79,12 +79,12 @@ jobs:
       # =========================
       # 🔥 STEP 4: CACHE OWASP DB
       # =========================
-      #- name: Cache OWASP DB
-       # uses: actions/cache@v4
-        #with:
-         # path: ~/.m2/repository/org/owasp/dependency-check-data
-          #key: owasp-db-${{ runner.os }}
-          # owasp-db-
+      - name: Cache OWASP DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: owasp-db-${{ runner.os }}
+           owasp-db-
 
       # =========================
       # 🔥 STEP 5: OWASP FAST SCAN
