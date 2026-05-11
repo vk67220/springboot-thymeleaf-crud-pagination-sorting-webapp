@@ -15,7 +15,7 @@ services:
 
   app:
     #build: .     
-    image: 302524629943.dkr.ecr.ap-south-1.amazonaws.com/employees-app-dev:latest    // Use this for ECR pull
+    image: 302524629943.dkr.ecr.ap-south-1.amazonaws.com/employees-app-dev:latest 
     container_name: springboot_app
     ports:
       - "8080:8080"
