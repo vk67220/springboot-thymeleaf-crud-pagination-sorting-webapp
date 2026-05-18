@@ -201,7 +201,7 @@ jobs:
 
           kubectl apply -f k8s/postgres_service.yml
 
-          kubectl apply -f k8s/postgres_statefulset.yml
+          kubectl apply -f k8s/postgresql_statefulset_secret_config_volume.yml
 
           kubectl apply -f k8s/app_deployment_config_secret.yml
 
