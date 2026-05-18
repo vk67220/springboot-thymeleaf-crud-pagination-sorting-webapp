@@ -20,6 +20,7 @@ jobs:
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
@@ -43,8 +44,8 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
       #########################################
       # STEP 3 - Configure AWS Credentials
@@ -181,7 +182,30 @@ jobs:
       #########################################
       - name: Deploy Kubernetes YAML Files
         run: |
-          kubectl apply -f k8s/
+
+          echo "Creating Namespace..."
+          kubectl apply -f k8s/namespace.yml
+
+          echo "Waiting for Namespace..."
+          sleep 10
+
+          echo "Deploying Remaining Kubernetes Resources..."
+
+          kubectl apply -f k8s/configmap.yml
+
+          kubectl apply -f k8s/secrets.yml
+
+          kubectl apply -f k8s/storageclass.yml
+
+          kubectl apply -f k8s/headless_service.yml
+
+          kubectl apply -f k8s/postgres_service.yml
+
+          kubectl apply -f k8s/postgres_statefulset.yml
+
+          kubectl apply -f k8s/app_deployment_config_secret.yml
+
+          kubectl apply -f k8s/app_service.yml
 
       #########################################
       # STEP 20 - Verify Kubernetes Rollout
