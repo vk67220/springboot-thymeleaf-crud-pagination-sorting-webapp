@@ -1,0 +1,155 @@
+name: DevSecOps Pipeline (Local + DockerHub + K8s Deploy)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  devsecops:
+    runs-on: self-hosted
+
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+
+    steps:
+
+      #########################################
+      # Checkout
+      #########################################
+      - uses: actions/checkout@v4
+
+      #########################################
+      # Java Setup
+      #########################################
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      #########################################
+      # Set Version
+      #########################################
+      - name: Set Version
+        run: |
+          VERSION=0.0.${GITHUB_RUN_NUMBER}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      #########################################
+      # Build Application
+      #########################################
+      - name: Build
+        run: mvn clean package -DskipTests
+
+      #########################################
+      # SonarQube Scan
+      #########################################
+      - name: Sonar Scan
+        run: |
+          mvn sonar:sonar \
+            -Dsonar.projectKey=employees \
+            -Dsonar.projectName=employees \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.login=${SONAR_TOKEN} \
+            -Dsonar.qualitygate.wait=true
+
+      #########################################
+      # Trivy FileSystem Scan
+      #########################################
+      - name: Trivy FS Scan
+        run: |
+          trivy fs . > trivyfs.txt
+
+      #########################################
+      # Docker Build
+      #########################################
+      - name: Build Docker Image
+        run: |
+          docker build -t employees-app:${VERSION} .
+          docker tag employees-app:${VERSION} employees-app:latest
+
+      #########################################
+      # Trivy Image Scan
+      #########################################
+      - name: Trivy Image Scan
+        run: |
+          trivy image employees-app:${VERSION}
+
+      #########################################
+      # Docker Login
+      #########################################
+      - name: Docker Login
+        run: |
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
+      #########################################
+      # Tag Image for DockerHub
+      #########################################
+      - name: Tag Image for DockerHub
+        run: |
+          docker tag employees-app:${VERSION} $DOCKER_USERNAME/employees-app:${VERSION}
+          docker tag employees-app:${VERSION} $DOCKER_USERNAME/employees-app:latest
+
+      #########################################
+      # Push Image to DockerHub
+      #########################################
+      - name: Push Image
+        run: |
+          docker push $DOCKER_USERNAME/employees-app:${VERSION}
+          docker push $DOCKER_USERNAME/employees-app:latest
+
+      #########################################
+      # Local Docker Compose Deployment
+      #########################################
+      - name: Deploy Containers
+        run: |
+          docker compose down || true
+          docker compose up -d
+
+      #########################################
+      # Verify Local Containers
+      #########################################
+      - name: Verify Local Containers
+        run: docker ps
+
+      #########################################
+      # Configure kubectl for EKS
+      #########################################
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region ${AWS_REGION} \
+            --name ${CLUSTER_NAME}
+
+      #########################################
+      # Verify Kubernetes Cluster
+      #########################################
+      - name: Verify Kubernetes Cluster
+        run: |
+          kubectl get nodes
+
+      #########################################
+      # Update Deployment Image
+      #########################################
+      - name: Update Kubernetes Deployment
+        run: |
+          kubectl set image deployment/employee-app \
+            employee-app=$DOCKER_USERNAME/employees-app:${VERSION} \
+            -n vk67220-ns
+
+      #########################################
+      # Verify Rollout
+      #########################################
+      - name: Verify Rollout
+        run: |
+          kubectl rollout status deployment/employee-app -n vk67220-ns
+
+      #########################################
+      # Verify Kubernetes Resources
+      #########################################
+      - name: Verify Kubernetes Resources
+        run: |
+          kubectl get all -n vk67220-ns
