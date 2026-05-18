@@ -1,4 +1,4 @@
-name: DevSecOps Pipeline (Local + DockerHub + K8s Deploy)
+name: DevSecOps Pipeline (Docker Compose + EKS)
 
 on:
   workflow_dispatch:
@@ -18,20 +18,35 @@ jobs:
     steps:
 
       #########################################
-      # Checkout
+      # STEP 1 - Checkout Code
       #########################################
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       #########################################
-      # Java Setup
+      # STEP 2 - Setup Java
       #########################################
-      - uses: actions/setup-java@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
       #########################################
-      # Set Version
+      # STEP 3 - Verify Installed Tools
+      #########################################
+      - name: Verify Installed Tools
+        run: |
+          java -version
+          mvn -version
+          docker --version
+          docker-compose version
+          kubectl version --client
+          aws --version
+          trivy --version
+
+      #########################################
+      # STEP 4 - Set Version
       #########################################
       - name: Set Version
         run: |
@@ -39,15 +54,16 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       #########################################
-      # Build Application
+      # STEP 5 - Maven Build
       #########################################
-      - name: Build
-        run: mvn clean package -DskipTests
+      - name: Maven Build
+        run: |
+          mvn clean package -DskipTests
 
       #########################################
-      # SonarQube Scan
+      # STEP 6 - SonarQube Scan
       #########################################
-      - name: Sonar Scan
+      - name: SonarQube Scan
         run: |
           mvn sonar:sonar \
             -Dsonar.projectKey=employees \
@@ -57,14 +73,14 @@ jobs:
             -Dsonar.qualitygate.wait=true
 
       #########################################
-      # Trivy FileSystem Scan
+      # STEP 7 - Trivy FileSystem Scan
       #########################################
-      - name: Trivy FS Scan
+      - name: Trivy FileSystem Scan
         run: |
-          trivy fs . > trivyfs.txt
+          trivy fs . > trivyfs-report.txt
 
       #########################################
-      # Docker Build
+      # STEP 8 - Build Docker Image
       #########################################
       - name: Build Docker Image
         run: |
@@ -72,51 +88,59 @@ jobs:
           docker tag employees-app:${VERSION} employees-app:latest
 
       #########################################
-      # Trivy Image Scan
+      # STEP 9 - Trivy Docker Image Scan
       #########################################
-      - name: Trivy Image Scan
+      - name: Trivy Docker Image Scan
         run: |
           trivy image employees-app:${VERSION}
 
       #########################################
-      # Docker Login
+      # STEP 10 - DockerHub Login
       #########################################
-      - name: Docker Login
+      - name: DockerHub Login
         run: |
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 
       #########################################
-      # Tag Image for DockerHub
+      # STEP 11 - Tag Docker Image
       #########################################
-      - name: Tag Image for DockerHub
+      - name: Tag Docker Image
         run: |
           docker tag employees-app:${VERSION} $DOCKER_USERNAME/employees-app:${VERSION}
           docker tag employees-app:${VERSION} $DOCKER_USERNAME/employees-app:latest
 
       #########################################
-      # Push Image to DockerHub
+      # STEP 12 - Push Docker Image
       #########################################
-      - name: Push Image
+      - name: Push Docker Image
         run: |
           docker push $DOCKER_USERNAME/employees-app:${VERSION}
           docker push $DOCKER_USERNAME/employees-app:latest
 
       #########################################
-      # Local Docker Compose Deployment
+      # STEP 13 - Local Docker Compose Deployment
       #########################################
-      - name: Deploy Containers
+      - name: Deploy Docker Compose
         run: |
-          docker compose down || true
-          docker compose up -d
+          docker-compose down || true
+          docker-compose up -d
 
       #########################################
-      # Verify Local Containers
+      # STEP 14 - Verify Local Containers
       #########################################
       - name: Verify Local Containers
-        run: docker ps
+        run: |
+          docker ps
 
       #########################################
-      # Configure kubectl for EKS
+      # STEP 15 - Verify AWS Identity
+      #########################################
+      - name: Verify AWS Identity
+        run: |
+          aws sts get-caller-identity
+
+      #########################################
+      # STEP 16 - Update kubeconfig
       #########################################
       - name: Update kubeconfig
         run: |
@@ -125,31 +149,31 @@ jobs:
             --name ${CLUSTER_NAME}
 
       #########################################
-      # Verify Kubernetes Cluster
+      # STEP 17 - Verify Kubernetes Cluster
       #########################################
       - name: Verify Kubernetes Cluster
         run: |
           kubectl get nodes
 
       #########################################
-      # Update Deployment Image
+      # STEP 18 - Deploy Kubernetes YAML Files
       #########################################
-      - name: Update Kubernetes Deployment
+      - name: Deploy Kubernetes YAML Files
         run: |
-          kubectl set image deployment/employee-app \
-            employee-app=$DOCKER_USERNAME/employees-app:${VERSION} \
-            -n vk67220-ns
+          kubectl apply -f k8s/
 
       #########################################
-      # Verify Rollout
+      # STEP 19 - Verify Kubernetes Rollout
       #########################################
-      - name: Verify Rollout
+      - name: Verify Kubernetes Rollout
         run: |
           kubectl rollout status deployment/employee-app -n vk67220-ns
 
       #########################################
-      # Verify Kubernetes Resources
+      # STEP 20 - Verify Kubernetes Resources
       #########################################
       - name: Verify Kubernetes Resources
         run: |
           kubectl get all -n vk67220-ns
+          kubectl get pvc -n vk67220-ns
+          kubectl get sc -n vk67220-ns
