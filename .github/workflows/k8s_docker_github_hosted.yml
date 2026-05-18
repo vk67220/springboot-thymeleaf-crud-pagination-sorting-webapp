@@ -33,19 +33,6 @@ jobs:
           java-version: '17'
 
       #########################################
-      # STEP 3 - Verify Installed Tools
-      #########################################
-      - name: Verify Installed Tools
-        run: |
-          java -version
-          mvn -version
-          docker --version
-          docker-compose version
-          kubectl version --client
-          aws --version
-          trivy --version
-
-      #########################################
       # STEP 4 - Set Version
       #########################################
       - name: Set Version
