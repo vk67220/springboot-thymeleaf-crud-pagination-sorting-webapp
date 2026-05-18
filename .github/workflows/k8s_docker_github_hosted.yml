@@ -12,6 +12,8 @@ jobs:
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
       CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
 
@@ -50,7 +52,15 @@ jobs:
           aws sts get-caller-identity
 
       #########################################
-      # STEP 5 - Set Version
+      # STEP 5 - Debug Variables
+      #########################################
+      - name: Debug Variables
+        run: |
+          echo "AWS_REGION=${AWS_REGION}"
+          echo "CLUSTER_NAME=${CLUSTER_NAME}"
+
+      #########################################
+      # STEP 6 - Set Version
       #########################################
       - name: Set Version
         run: |
@@ -59,14 +69,14 @@ jobs:
           echo "Application Version: $VERSION"
 
       #########################################
-      # STEP 6 - Maven Build
+      # STEP 7 - Maven Build
       #########################################
       - name: Maven Build
         run: |
           mvn clean package -DskipTests
 
       #########################################
-      # STEP 7 - SonarQube Scan
+      # STEP 8 - SonarQube Scan
       #########################################
       - name: SonarQube Scan
         run: |
@@ -78,14 +88,14 @@ jobs:
             -Dsonar.qualitygate.wait=true
 
       #########################################
-      # STEP 8 - Trivy FileSystem Scan
+      # STEP 9 - Trivy FileSystem Scan
       #########################################
       - name: Trivy FileSystem Scan
         run: |
           trivy fs . > trivyfs-report.txt
 
       #########################################
-      # STEP 9 - Build Docker Image
+      # STEP 10 - Build Docker Image
       #########################################
       - name: Build Docker Image
         run: |
@@ -93,21 +103,21 @@ jobs:
           docker tag employees-app:${VERSION} employees-app:latest
 
       #########################################
-      # STEP 10 - Trivy Docker Image Scan
+      # STEP 11 - Trivy Docker Image Scan
       #########################################
       - name: Trivy Docker Image Scan
         run: |
           trivy image employees-app:${VERSION}
 
       #########################################
-      # STEP 11 - DockerHub Login
+      # STEP 12 - DockerHub Login
       #########################################
       - name: DockerHub Login
         run: |
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 
       #########################################
-      # STEP 12 - Tag Docker Image
+      # STEP 13 - Tag Docker Image
       #########################################
       - name: Tag Docker Image
         run: |
@@ -115,7 +125,7 @@ jobs:
           docker tag employees-app:${VERSION} $DOCKER_USERNAME/employees-app:latest
 
       #########################################
-      # STEP 13 - Push Docker Image
+      # STEP 14 - Push Docker Image
       #########################################
       - name: Push Docker Image
         run: |
@@ -123,7 +133,7 @@ jobs:
           docker push $DOCKER_USERNAME/employees-app:latest
 
       #########################################
-      # STEP 14 - Local Docker Compose Deployment
+      # STEP 15 - Local Docker Compose Deployment
       #########################################
       - name: Deploy Docker Compose
         run: |
@@ -131,14 +141,14 @@ jobs:
           docker-compose up -d
 
       #########################################
-      # STEP 15 - Verify Local Containers
+      # STEP 16 - Verify Local Containers
       #########################################
       - name: Verify Local Containers
         run: |
           docker ps
 
       #########################################
-      # STEP 16 - Update kubeconfig
+      # STEP 17 - Update kubeconfig
       #########################################
       - name: Update kubeconfig
         run: |
@@ -147,28 +157,28 @@ jobs:
             --name ${CLUSTER_NAME}
 
       #########################################
-      # STEP 17 - Verify Kubernetes Cluster
+      # STEP 18 - Verify Kubernetes Cluster
       #########################################
       - name: Verify Kubernetes Cluster
         run: |
           kubectl get nodes
 
       #########################################
-      # STEP 18 - Deploy Kubernetes YAML Files
+      # STEP 19 - Deploy Kubernetes YAML Files
       #########################################
       - name: Deploy Kubernetes YAML Files
         run: |
           kubectl apply -f k8s/
 
       #########################################
-      # STEP 19 - Verify Rollout
+      # STEP 20 - Verify Kubernetes Rollout
       #########################################
       - name: Verify Kubernetes Rollout
         run: |
           kubectl rollout status deployment/employee-app -n vk67220-ns
 
       #########################################
-      # STEP 20 - Verify Kubernetes Resources
+      # STEP 21 - Verify Kubernetes Resources
       #########################################
       - name: Verify Kubernetes Resources
         run: |
