@@ -193,7 +193,7 @@ jobs:
 
           kubectl apply -f k8s/configmap.yml
 
-          kubectl apply -f k8s/secrets.yml
+          kubectl apply -f k8s/secret.yml
 
           kubectl apply -f k8s/storageclass.yml
 
