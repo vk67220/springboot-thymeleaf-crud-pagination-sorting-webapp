@@ -33,22 +33,40 @@ jobs:
           java-version: '17'
 
       #########################################
-      # STEP 4 - Set Version
+      # STEP 3 - Configure AWS Credentials
+      #########################################
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      #########################################
+      # STEP 4 - Verify AWS Identity
+      #########################################
+      - name: Verify AWS Identity
+        run: |
+          aws sts get-caller-identity
+
+      #########################################
+      # STEP 5 - Set Version
       #########################################
       - name: Set Version
         run: |
           VERSION=0.0.${GITHUB_RUN_NUMBER}
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Application Version: $VERSION"
 
       #########################################
-      # STEP 5 - Maven Build
+      # STEP 6 - Maven Build
       #########################################
       - name: Maven Build
         run: |
           mvn clean package -DskipTests
 
       #########################################
-      # STEP 6 - SonarQube Scan
+      # STEP 7 - SonarQube Scan
       #########################################
       - name: SonarQube Scan
         run: |
@@ -60,14 +78,14 @@ jobs:
             -Dsonar.qualitygate.wait=true
 
       #########################################
-      # STEP 7 - Trivy FileSystem Scan
+      # STEP 8 - Trivy FileSystem Scan
       #########################################
       - name: Trivy FileSystem Scan
         run: |
           trivy fs . > trivyfs-report.txt
 
       #########################################
-      # STEP 8 - Build Docker Image
+      # STEP 9 - Build Docker Image
       #########################################
       - name: Build Docker Image
         run: |
@@ -75,21 +93,21 @@ jobs:
           docker tag employees-app:${VERSION} employees-app:latest
 
       #########################################
-      # STEP 9 - Trivy Docker Image Scan
+      # STEP 10 - Trivy Docker Image Scan
       #########################################
       - name: Trivy Docker Image Scan
         run: |
           trivy image employees-app:${VERSION}
 
       #########################################
-      # STEP 10 - DockerHub Login
+      # STEP 11 - DockerHub Login
       #########################################
       - name: DockerHub Login
         run: |
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 
       #########################################
-      # STEP 11 - Tag Docker Image
+      # STEP 12 - Tag Docker Image
       #########################################
       - name: Tag Docker Image
         run: |
@@ -97,7 +115,7 @@ jobs:
           docker tag employees-app:${VERSION} $DOCKER_USERNAME/employees-app:latest
 
       #########################################
-      # STEP 12 - Push Docker Image
+      # STEP 13 - Push Docker Image
       #########################################
       - name: Push Docker Image
         run: |
@@ -105,7 +123,7 @@ jobs:
           docker push $DOCKER_USERNAME/employees-app:latest
 
       #########################################
-      # STEP 13 - Local Docker Compose Deployment
+      # STEP 14 - Local Docker Compose Deployment
       #########################################
       - name: Deploy Docker Compose
         run: |
@@ -113,18 +131,11 @@ jobs:
           docker-compose up -d
 
       #########################################
-      # STEP 14 - Verify Local Containers
+      # STEP 15 - Verify Local Containers
       #########################################
       - name: Verify Local Containers
         run: |
           docker ps
-
-      #########################################
-      # STEP 15 - Verify AWS Identity
-      #########################################
-      - name: Verify AWS Identity
-        run: |
-          aws sts get-caller-identity
 
       #########################################
       # STEP 16 - Update kubeconfig
@@ -150,7 +161,7 @@ jobs:
           kubectl apply -f k8s/
 
       #########################################
-      # STEP 19 - Verify Kubernetes Rollout
+      # STEP 19 - Verify Rollout
       #########################################
       - name: Verify Kubernetes Rollout
         run: |
