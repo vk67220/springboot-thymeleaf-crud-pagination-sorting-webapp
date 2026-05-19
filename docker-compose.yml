@@ -15,8 +15,8 @@ services:
 
   app:
     #build: .     
-    #image: 302524629943.dkr.ecr.ap-south-1.amazonaws.com/employees-app-dev:latest 
-    image: employees-app:latest
+    image: 302524629943.dkr.ecr.ap-south-1.amazonaws.com/employees-app-dev:latest 
+    #image: employees-app:latest
     container_name: springboot_app
     ports:
       - "8080:8080"
