@@ -72,9 +72,14 @@ jobs:
       #########################################
       - name: Install eksctl
         run: |
-          curl --silent --location \
-          "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" \
-          | tar xz -C /tmp
+
+          ARCH=amd64
+          PLATFORM=$(uname -s)_$ARCH
+
+          curl -sLO \
+          "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_${PLATFORM}.tar.gz"
+
+          tar -xzf eksctl_${PLATFORM}.tar.gz -C /tmp
 
           sudo mv /tmp/eksctl /usr/local/bin
 
@@ -191,7 +196,7 @@ jobs:
           kubectl get pods -n kube-system | grep ebs
 
       #########################################
-      # STEP 15 - Verify Storage Classes
+      # STEP 15 - Verify StorageClass
       #########################################
       - name: Verify StorageClass
         run: |
@@ -199,7 +204,7 @@ jobs:
           kubectl get storageclass
 
       #########################################
-      # STEP 16 - Verify CSI Driver Addon
+      # STEP 16 - Verify EBS CSI Addon
       #########################################
       - name: Verify EBS CSI Addon
         run: |
