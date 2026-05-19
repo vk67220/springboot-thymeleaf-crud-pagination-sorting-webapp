@@ -14,6 +14,7 @@ on:
 jobs:
   install-ebs-csi:
     runs-on: self-hosted
+
     environment: ${{ inputs.target_env }}
 
     env:
@@ -24,13 +25,13 @@ jobs:
     steps:
 
       #########################################
-      # Checkout Repository
+      # STEP 1 - Checkout Repository
       #########################################
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       #########################################
-      # Configure AWS Credentials
+      # STEP 2 - Configure AWS Credentials
       #########################################
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -40,14 +41,23 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       #########################################
-      # Verify AWS Identity
+      # STEP 3 - Verify AWS Identity
       #########################################
       - name: Verify AWS Identity
         run: |
           aws sts get-caller-identity
 
       #########################################
-      # Pre-check Cluster
+      # STEP 4 - Configure kubeconfig
+      #########################################
+      - name: Configure kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region ${AWS_REGION} \
+            --name ${CLUSTER_NAME}
+
+      #########################################
+      # STEP 5 - Verify EKS Cluster
       #########################################
       - name: Verify EKS Cluster
         run: |
@@ -58,7 +68,7 @@ jobs:
             --region ${AWS_REGION}
 
       #########################################
-      # Install eksctl
+      # STEP 6 - Install eksctl
       #########################################
       - name: Install eksctl
         run: |
@@ -71,7 +81,7 @@ jobs:
           eksctl version
 
       #########################################
-      # Associate IAM OIDC Provider
+      # STEP 7 - Associate IAM OIDC Provider
       #########################################
       - name: Associate IAM OIDC Provider
         run: |
@@ -81,11 +91,12 @@ jobs:
             --approve
 
       #########################################
-      # Get OIDC ID
+      # STEP 8 - Get OIDC ID
       #########################################
       - name: Get OIDC ID
         id: oidc
         run: |
+
           OIDC_URL=$(aws eks describe-cluster \
             --name ${CLUSTER_NAME} \
             --query "cluster.identity.oidc.issuer" \
@@ -98,10 +109,11 @@ jobs:
           echo "OIDC_ID=$OIDC_ID" >> $GITHUB_ENV
 
       #########################################
-      # Create Trust Policy
+      # STEP 9 - Create Trust Policy
       #########################################
       - name: Create Trust Policy
         run: |
+
           cat <<EOF > ebs-trust-policy.json
           {
             "Version": "2012-10-17",
@@ -125,30 +137,33 @@ jobs:
           cat ebs-trust-policy.json
 
       #########################################
-      # Create IAM Role
+      # STEP 10 - Create IAM Role
       #########################################
       - name: Create IAM Role
         run: |
+
           aws iam create-role \
             --role-name AmazonEKS_EBS_CSI_DriverRole \
             --assume-role-policy-document file://ebs-trust-policy.json \
-          || echo "Role already exists"
+          || echo "IAM Role already exists"
 
       #########################################
-      # Attach EBS CSI Policy
+      # STEP 11 - Attach EBS CSI Policy
       #########################################
       - name: Attach EBS CSI Policy
         run: |
+
           aws iam attach-role-policy \
             --role-name AmazonEKS_EBS_CSI_DriverRole \
             --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
           || echo "Policy already attached"
 
       #########################################
-      # Install EBS CSI Driver Add-on
+      # STEP 12 - Install EBS CSI Driver Add-on
       #########################################
       - name: Install EBS CSI Driver
         run: |
+
           aws eks create-addon \
             --cluster-name ${CLUSTER_NAME} \
             --addon-name aws-ebs-csi-driver \
@@ -157,18 +172,39 @@ jobs:
           || echo "Addon already exists"
 
       #########################################
-      # Wait for Add-on
+      # STEP 13 - Wait for Add-on
       #########################################
       - name: Wait for Add-on
         run: |
+
           aws eks wait addon-active \
             --cluster-name ${CLUSTER_NAME} \
             --addon-name aws-ebs-csi-driver \
             --region ${AWS_REGION}
 
       #########################################
-      # Verify EBS CSI Pods
+      # STEP 14 - Verify EBS CSI Pods
       #########################################
       - name: Verify EBS CSI Pods
         run: |
+
           kubectl get pods -n kube-system | grep ebs
+
+      #########################################
+      # STEP 15 - Verify Storage Classes
+      #########################################
+      - name: Verify StorageClass
+        run: |
+
+          kubectl get storageclass
+
+      #########################################
+      # STEP 16 - Verify CSI Driver Addon
+      #########################################
+      - name: Verify EBS CSI Addon
+        run: |
+
+          aws eks describe-addon \
+            --cluster-name ${CLUSTER_NAME} \
+            --addon-name aws-ebs-csi-driver \
+            --region ${AWS_REGION}
