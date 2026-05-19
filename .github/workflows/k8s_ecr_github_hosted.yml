@@ -157,9 +157,9 @@ jobs:
       - name: Deploy Containers
         run: |
 
-          docker compose down || true
+          docker-compose down || true
 
-          docker compose up -d
+          docker-compose up -d
 
       #########################################
       # STEP 15 - Verify Local Containers
