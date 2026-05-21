@@ -1,0 +1,254 @@
+name: DevSecOps Helm Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Choose Environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - production
+
+jobs:
+  devsecops:
+    runs-on: self-hosted
+
+    environment: ${{ inputs.environment }}
+
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+
+      ECR_REPO: employees-app-dev
+
+    steps:
+
+      #########################################
+      # CHECKOUT
+      #########################################
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      #########################################
+      # SETUP JAVA
+      #########################################
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      #########################################
+      # CACHE MAVEN
+      #########################################
+      - name: Cache Maven Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      #########################################
+      # VERSION
+      #########################################
+      - name: Set Version
+        run: |
+          VERSION=0.0.${GITHUB_RUN_NUMBER}
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      #########################################
+      # BUILD
+      #########################################
+      - name: Build
+        run: |
+          mvn clean package -DskipTests
+
+      #########################################
+      # SONARQUBE
+      #########################################
+      - name: Sonar Scan
+        run: |
+          mvn sonar:sonar \
+            -Dsonar.projectKey=employees \
+            -Dsonar.projectName=employees \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.login=${SONAR_TOKEN}
+
+      #########################################
+      # TRIVY FILE SYSTEM SCAN
+      #########################################
+      - name: Trivy FS Scan
+        run: |
+          trivy fs . > trivyfs-report.txt
+
+      #########################################
+      # BUILD DOCKER IMAGE
+      #########################################
+      - name: Build Docker Image
+        run: |
+
+          docker build \
+            --cache-from employees-app:latest \
+            -t employees-app:${VERSION} .
+
+          docker tag employees-app:${VERSION} employees-app:latest
+
+      #########################################
+      # TRIVY IMAGE SCAN
+      #########################################
+      - name: Trivy Image Scan
+        run: |
+          trivy image employees-app:${VERSION}
+
+      #########################################
+      # CONFIGURE AWS
+      #########################################
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      #########################################
+      # VERIFY AWS LOGIN
+      #########################################
+      - name: Verify AWS Login
+        run: |
+          aws sts get-caller-identity
+
+      #########################################
+      # LOGIN TO ECR
+      #########################################
+      - name: Login to ECR
+        run: |
+
+          aws ecr get-login-password --region $AWS_REGION \
+          | docker login \
+            --username AWS \
+            --password-stdin \
+            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      #########################################
+      # TAG IMAGE
+      #########################################
+      - name: Tag Docker Image
+        run: |
+
+          docker tag employees-app:${VERSION} \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}
+
+          docker tag employees-app:${VERSION} \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:latest
+
+      #########################################
+      # PUSH IMAGE TO ECR
+      #########################################
+      - name: Push Image to ECR
+        run: |
+
+          docker push \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}
+
+          docker push \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:latest
+
+      #########################################
+      # LOCAL DOCKER COMPOSE DEPLOYMENT
+      #########################################
+      - name: Docker Compose Deployment
+        run: |
+
+          docker-compose down || true
+
+          docker-compose pull
+
+          docker-compose up -d
+
+      #########################################
+      # VERIFY LOCAL CONTAINERS
+      #########################################
+      - name: Verify Docker Containers
+        run: |
+          docker ps
+
+      #########################################
+      # CONFIGURE KUBECONFIG
+      #########################################
+      - name: Configure kubeconfig
+        run: |
+
+          aws eks update-kubeconfig \
+            --region ${AWS_REGION} \
+            --name ${CLUSTER_NAME}
+
+      #########################################
+      # VERIFY EKS CLUSTER
+      #########################################
+      - name: Verify EKS Cluster
+        run: |
+
+          kubectl get nodes
+
+      #########################################
+      # HELM LINT
+      #########################################
+      - name: Helm Lint
+        run: |
+
+          helm lint helm/employee-app
+
+      #########################################
+      # HELM TEMPLATE VALIDATION
+      #########################################
+      - name: Helm Template Validation
+        run: |
+
+          helm template employee-app ./helm/employee-app
+
+      #########################################
+      # HELM DEPLOYMENT
+      #########################################
+      - name: Helm Upgrade Install
+        run: |
+
+          helm upgrade --install employee-app ./helm/employee-app \
+            --namespace vk67220-ns \
+            --create-namespace \
+            --set image.repository=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO \
+            --set image.tag=${VERSION}
+
+      #########################################
+      # VERIFY KUBERNETES DEPLOYMENT
+      #########################################
+      - name: Verify Kubernetes Deployment
+        run: |
+
+          kubectl rollout status deployment/employee-app \
+            -n vk67220-ns
+
+          kubectl get pods -n vk67220-ns
+
+          kubectl get svc -n vk67220-ns
+
+          kubectl get pvc -n vk67220-ns
+
+      #########################################
+      # CLEANUP
+      #########################################
+      - name: Cleanup Docker Images
+        run: |
+
+          docker image prune -f
