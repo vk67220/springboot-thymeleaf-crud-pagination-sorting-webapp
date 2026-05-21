@@ -1,0 +1,287 @@
+name: Enterprise DevSecOps Pipeline (ECR + EKS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Select Environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - production
+
+jobs:
+  devsecops:
+    runs-on: self-hosted
+
+    environment: ${{ inputs.target_env }}
+
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+      CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+
+      ECR_REPO: employees-app-dev
+
+    steps:
+
+      #########################################################
+      # STEP 1 - CHECKOUT CODE
+      #########################################################
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      #########################################################
+      # STEP 2 - SETUP JAVA
+      #########################################################
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      #########################################################
+      # STEP 3 - CACHE MAVEN DEPENDENCIES
+      #########################################################
+      - name: Cache Maven Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      #########################################################
+      # STEP 4 - SET VERSION
+      #########################################################
+      - name: Set Version
+        run: |
+
+          VERSION=0.0.${GITHUB_RUN_NUMBER}
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      #########################################################
+      # STEP 5 - VERIFY TOOLS
+      #########################################################
+      - name: Verify Installed Tools
+        run: |
+
+          java -version
+
+          mvn -version
+
+          docker --version
+
+          kubectl version --client
+
+          aws --version
+
+      #########################################################
+      # STEP 6 - MAVEN BUILD
+      #########################################################
+      - name: Maven Build
+        run: |
+
+          mvn clean package -DskipTests
+
+      #########################################################
+      # STEP 7 - SONARQUBE SCAN
+      #########################################################
+      - name: SonarQube Scan
+        run: |
+
+          mvn sonar:sonar \
+            -Dsonar.projectKey=employees \
+            -Dsonar.projectName=employees \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.login=${SONAR_TOKEN} \
+            -Dsonar.qualitygate.wait=true
+
+      #########################################################
+      # STEP 8 - TRIVY FILE SYSTEM SCAN
+      #########################################################
+      - name: Trivy File System Scan
+        run: |
+
+          trivy fs . > trivyfs-report.txt
+
+      #########################################################
+      # STEP 9 - CLEAN DOCKER CACHE
+      #########################################################
+      - name: Clean Docker Cache
+        run: |
+
+          docker builder prune -af || true
+
+          docker system prune -af || true
+
+      #########################################################
+      # STEP 10 - BUILD DOCKER IMAGE
+      #########################################################
+      - name: Build Docker Image
+        run: |
+
+          docker build \
+            --pull \
+            --no-cache \
+            -t employees-app:${VERSION} .
+
+          docker tag employees-app:${VERSION} employees-app:latest
+
+      #########################################################
+      # STEP 11 - TRIVY IMAGE SCAN
+      #########################################################
+      - name: Trivy Image Scan
+        run: |
+
+          trivy image employees-app:${VERSION}
+
+      #########################################################
+      # STEP 12 - CONFIGURE AWS CREDENTIALS
+      #########################################################
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      #########################################################
+      # STEP 13 - VERIFY AWS LOGIN
+      #########################################################
+      - name: Verify AWS Identity
+        run: |
+
+          aws sts get-caller-identity
+
+      #########################################################
+      # STEP 14 - LOGIN TO ECR
+      #########################################################
+      - name: Login to Amazon ECR
+        run: |
+
+          aws ecr get-login-password --region $AWS_REGION \
+          | docker login \
+            --username AWS \
+            --password-stdin \
+            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      #########################################################
+      # STEP 15 - TAG IMAGE FOR ECR
+      #########################################################
+      - name: Tag Docker Image
+        run: |
+
+          docker tag employees-app:${VERSION} \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}
+
+          docker tag employees-app:${VERSION} \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:latest
+
+      #########################################################
+      # STEP 16 - PUSH IMAGE TO ECR
+      #########################################################
+      - name: Push Image to ECR
+        run: |
+
+          docker push \
+            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}
+
+          docker push \
+            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:latest
+
+      #########################################################
+      # STEP 17 - CONFIGURE KUBECONFIG
+      #########################################################
+      - name: Configure kubeconfig
+        run: |
+
+          aws eks update-kubeconfig \
+            --region ${AWS_REGION} \
+            --name ${CLUSTER_NAME}
+
+      #########################################################
+      # STEP 18 - VERIFY EKS CLUSTER
+      #########################################################
+      - name: Verify EKS Cluster
+        run: |
+
+          kubectl get nodes
+
+      #########################################################
+      # STEP 19 - CREATE NAMESPACE
+      #########################################################
+      - name: Create Namespace
+        run: |
+
+          kubectl get namespace vk67220-ns || \
+          kubectl create namespace vk67220-ns
+
+      #########################################################
+      # STEP 20 - DEPLOY KUBERNETES YAML FILES
+      #########################################################
+      - name: Deploy Kubernetes Resources
+        run: |
+
+          kubectl apply -f k8s/
+
+      #########################################################
+      # STEP 21 - RESTART DEPLOYMENT
+      #########################################################
+      - name: Restart Deployment
+        run: |
+
+          kubectl rollout restart deployment/employee-app \
+            -n vk67220-ns
+
+      #########################################################
+      # STEP 22 - WAIT FOR ROLLOUT
+      #########################################################
+      - name: Wait for Rollout
+        run: |
+
+          kubectl rollout status deployment/employee-app \
+            -n vk67220-ns \
+            --timeout=300s
+
+      #########################################################
+      # STEP 23 - VERIFY KUBERNETES RESOURCES
+      #########################################################
+      - name: Verify Kubernetes Resources
+        run: |
+
+          kubectl get all -n vk67220-ns
+
+          kubectl get pvc -n vk67220-ns
+
+          kubectl get storageclass
+
+      #########################################################
+      # STEP 24 - VERIFY SERVICES
+      #########################################################
+      - name: Verify Services
+        run: |
+
+          kubectl get svc -n vk67220-ns
+
+      #########################################################
+      # STEP 25 - VERIFY POD METRICS
+      #########################################################
+      - name: Verify Metrics
+        run: |
+
+          kubectl top pods -n vk67220-ns || true
+
+      #########################################################
+      # STEP 26 - CLEANUP OLD DOCKER IMAGES
+      #########################################################
+      - name: Cleanup Docker Images
+        run: |
+
+          docker image prune -af
