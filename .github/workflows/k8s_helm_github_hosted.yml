@@ -85,6 +85,7 @@ jobs:
             -Dsonar.projectName=employees \
             -Dsonar.host.url=${SONAR_HOST_URL} \
             -Dsonar.login=${SONAR_TOKEN}
+            -Dsonar.qualitygate.wait=true
 
       #########################################
       # TRIVY FILE SYSTEM SCAN
@@ -226,7 +227,7 @@ jobs:
 
           helm upgrade --install employee-app ./helm/employee-app \
             --namespace vk67220-ns \
-            --create-namespace \
+            --set replicaCount=5      # Override replica count for testing purposes
             --set image.repository=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO \
             --set image.tag=${VERSION}
 
