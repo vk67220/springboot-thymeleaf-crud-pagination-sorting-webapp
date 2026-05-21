@@ -1,0 +1,23 @@
+namespace: vk67220-ns
+
+replicaCount: 3
+
+image:
+  repository: 302524629943.dkr.ecr.us-east-1.amazonaws.com/employees-app-dev
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8080
+
+postgres:
+  image: postgres:13
+  database: employees
+  username: postgres
+  password: root
+
+storage:
+  className: vk67220-storage-duplicate
+  size: 2Gi
