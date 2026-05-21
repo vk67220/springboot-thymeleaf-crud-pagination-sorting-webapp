@@ -1,10 +1,10 @@
-name: Helm Pipeline
+name: DevSecOps Helm CI/CD Pipeline
 
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Choose Environment"
+        description: "Select Environment"
         required: true
         type: choice
         options:
@@ -33,24 +33,24 @@ jobs:
 
     steps:
 
-      #########################################
-      # CHECKOUT
-      #########################################
+      #########################################################
+      # CHECKOUT SOURCE CODE
+      #########################################################
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      #########################################
+      #########################################################
       # SETUP JAVA
-      #########################################
+      #########################################################
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      #########################################
-      # CACHE MAVEN
-      #########################################
+      #########################################################
+      # CACHE MAVEN DEPENDENCIES
+      #########################################################
       - name: Cache Maven Dependencies
         uses: actions/cache@v4
         with:
@@ -59,27 +59,48 @@ jobs:
           restore-keys: |
             maven-${{ runner.os }}-
 
-      #########################################
-      # VERSION
-      #########################################
+      #########################################################
+      # SET VERSION
+      #########################################################
       - name: Set Version
         run: |
+
           VERSION=0.0.${GITHUB_RUN_NUMBER}
 
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      #########################################
-      # BUILD
-      #########################################
-      - name: Build
+      #########################################################
+      # VERIFY TOOLS
+      #########################################################
+      - name: Verify Installed Tools
         run: |
+
+          java -version
+
+          mvn -version
+
+          docker --version
+
+          kubectl version --client
+
+          helm version
+
+          aws --version
+
+      #########################################################
+      # MAVEN BUILD
+      #########################################################
+      - name: Maven Build
+        run: |
+
           mvn clean package -DskipTests
 
-      #########################################
-      # SONARQUBE
-      #########################################
-      - name: Sonar Scan
+      #########################################################
+      # SONARQUBE SCAN
+      #########################################################
+      - name: SonarQube Scan
         run: |
+
           mvn sonar:sonar \
             -Dsonar.projectKey=employees \
             -Dsonar.projectName=employees \
@@ -87,35 +108,48 @@ jobs:
             -Dsonar.login=${SONAR_TOKEN} \
             -Dsonar.qualitygate.wait=true
 
-      #########################################
+      #########################################################
       # TRIVY FILE SYSTEM SCAN
-      #########################################
-      - name: Trivy FS Scan
+      #########################################################
+      - name: Trivy File System Scan
         run: |
+
           trivy fs . > trivyfs-report.txt
 
-      #########################################
+      #########################################################
+      # CLEAN DOCKER CACHE
+      #########################################################
+      - name: Clean Docker Cache
+        run: |
+
+          docker builder prune -af || true
+
+          docker system prune -af || true
+
+      #########################################################
       # BUILD DOCKER IMAGE
-      #########################################
+      #########################################################
       - name: Build Docker Image
         run: |
 
           docker build \
-            --cache-from employees-app:latest \
+            --pull \
+            --no-cache \
             -t employees-app:${VERSION} .
 
           docker tag employees-app:${VERSION} employees-app:latest
 
-      #########################################
+      #########################################################
       # TRIVY IMAGE SCAN
-      #########################################
+      #########################################################
       - name: Trivy Image Scan
         run: |
+
           trivy image employees-app:${VERSION}
 
-      #########################################
-      # CONFIGURE AWS
-      #########################################
+      #########################################################
+      # CONFIGURE AWS CREDENTIALS
+      #########################################################
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -123,16 +157,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      #########################################
+      #########################################################
       # VERIFY AWS LOGIN
-      #########################################
+      #########################################################
       - name: Verify AWS Login
         run: |
+
           aws sts get-caller-identity
 
-      #########################################
+      #########################################################
       # LOGIN TO ECR
-      #########################################
+      #########################################################
       - name: Login to ECR
         run: |
 
@@ -142,9 +177,9 @@ jobs:
             --password-stdin \
             $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
-      #########################################
-      # TAG IMAGE
-      #########################################
+      #########################################################
+      # TAG IMAGE FOR ECR
+      #########################################################
       - name: Tag Docker Image
         run: |
 
@@ -154,9 +189,9 @@ jobs:
           docker tag employees-app:${VERSION} \
           $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:latest
 
-      #########################################
+      #########################################################
       # PUSH IMAGE TO ECR
-      #########################################
+      #########################################################
       - name: Push Image to ECR
         run: |
 
@@ -166,28 +201,9 @@ jobs:
           docker push \
           $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:latest
 
-      #########################################
-      # LOCAL DOCKER COMPOSE DEPLOYMENT
-      #########################################
-      - name: Docker Compose Deployment
-        run: |
-
-          docker-compose down || true
-
-          docker-compose pull
-
-          docker-compose up -d
-
-      #########################################
-      # VERIFY LOCAL CONTAINERS
-      #########################################
-      - name: Verify Docker Containers
-        run: |
-          docker ps
-
-      #########################################
+      #########################################################
       # CONFIGURE KUBECONFIG
-      #########################################
+      #########################################################
       - name: Configure kubeconfig
         run: |
 
@@ -195,45 +211,65 @@ jobs:
             --region ${AWS_REGION} \
             --name ${CLUSTER_NAME}
 
-      #########################################
+      #########################################################
       # VERIFY EKS CLUSTER
-      #########################################
+      #########################################################
       - name: Verify EKS Cluster
         run: |
 
           kubectl get nodes
 
-      #########################################
+      #########################################################
+      # CREATE NAMESPACE
+      #########################################################
+      - name: Create Namespace
+        run: |
+
+          kubectl get namespace vk67220-ns || \
+          kubectl create namespace vk67220-ns
+
+      #########################################################
       # HELM LINT
-      #########################################
+      #########################################################
       - name: Helm Lint
         run: |
 
           helm lint helm/employee-app
 
-      #########################################
+      #########################################################
       # HELM TEMPLATE VALIDATION
-      #########################################
+      #########################################################
       - name: Helm Template Validation
         run: |
 
           helm template employee-app ./helm/employee-app
 
-      #########################################
-      # HELM DEPLOYMENT
-      #########################################
+      #########################################################
+      # HELM DEPLOYMENT / UPGRADE
+      #########################################################
       - name: Helm Upgrade Install
         run: |
 
           helm upgrade --install employee-app ./helm/employee-app \
             --namespace vk67220-ns \
-            --set replicaCount=5   \   # Override replica count for testing purposes
+            --set replicaCount=5 \
             --set image.repository=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO \
             --set image.tag=${VERSION}
 
-      #########################################
+      #########################################################
+      # VERIFY HELM RELEASE
+      #########################################################
+      - name: Verify Helm Release
+        run: |
+
+          helm list -A
+
+          helm history employee-app \
+            -n vk67220-ns
+
+      #########################################################
       # VERIFY KUBERNETES DEPLOYMENT
-      #########################################
+      #########################################################
       - name: Verify Kubernetes Deployment
         run: |
 
@@ -246,10 +282,21 @@ jobs:
 
           kubectl get pvc -n vk67220-ns
 
-      #########################################
-      # CLEANUP
-      #########################################
+          kubectl get statefulset -n vk67220-ns
+
+      #########################################################
+      # GET APPLICATION URL
+      #########################################################
+      - name: Get Application URL
+        run: |
+
+          kubectl get svc employee-app-svc \
+            -n vk67220-ns
+
+      #########################################################
+      # CLEANUP OLD IMAGES
+      #########################################################
       - name: Cleanup Docker Images
         run: |
 
-          docker image prune -f
+          docker image prune -af
