@@ -1,4 +1,4 @@
-name: Enterprise DevSecOps Pipeline (ECR + EKS)
+name: Enterprise autoscaling Pipeline (ECR + EKS)
 
 on:
   workflow_dispatch:
