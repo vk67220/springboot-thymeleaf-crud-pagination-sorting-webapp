@@ -1,4 +1,4 @@
-name: DevSecOps Helm Pipeline
+name: Helm Pipeline
 
 on:
   workflow_dispatch:
