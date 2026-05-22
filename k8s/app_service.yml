@@ -5,7 +5,8 @@ metadata:
   name: employee-app-svc
   namespace: vk67220-ns
 spec:
-  type: LoadBalancer
+  #type: LoadBalancer   # For EKS Cluster with AWS Load Balancer Controller
+  type: ClusterIP       # when using ingress controller type should be ClusterIP
   selector:
     app: employee-app
   ports:
