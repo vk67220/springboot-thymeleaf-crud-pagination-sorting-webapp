@@ -240,7 +240,7 @@ jobs:
       - name: Apply HPA
         run: |
 
-          kubectl apply -f autoscaling/
+          kubectl apply -f autoscaling/hpa.yml
 
       #########################################################
       # STEP 22 - VERIFY HPA
