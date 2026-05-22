@@ -18,6 +18,9 @@ jobs:
     environment: ${{ inputs.target_env }}
 
     env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
       AWS_REGION: ${{ secrets.AWS_REGION }}
 
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -28,6 +31,8 @@ jobs:
 
       CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
 
+      ECR_REPO: employees-app-dev
+
     steps:
 
       #########################################################
@@ -37,17 +42,91 @@ jobs:
         uses: actions/checkout@v4
 
       #########################################################
-      # STEP 2 - VERIFY TOOLS
+      # STEP 2 - SETUP JAVA
+      #########################################################
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      #########################################################
+      # STEP 3 - SET VERSION
+      #########################################################
+      - name: Set Version
+        run: |
+
+          VERSION=0.0.${GITHUB_RUN_NUMBER}
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      #########################################################
+      # STEP 4 - VERIFY TOOLS
       #########################################################
       - name: Verify Installed Tools
         run: |
+
+          java -version
+
+          mvn -version
+
+          docker --version
+
+          docker-compose --version
 
           kubectl version --client
 
           aws --version
 
       #########################################################
-      # STEP 3 - CONFIGURE AWS CREDENTIALS
+      # STEP 5 - MAVEN BUILD
+      #########################################################
+      - name: Maven Build
+        run: |
+
+          mvn clean package -DskipTests
+
+      #########################################################
+      # STEP 6 - SONARQUBE SCAN
+      #########################################################
+      - name: SonarQube Scan
+        run: |
+
+          mvn sonar:sonar \
+            -Dsonar.projectKey=employees \
+            -Dsonar.projectName=employees \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.login=${SONAR_TOKEN} \
+            -Dsonar.qualitygate.wait=true
+
+      #########################################################
+      # STEP 7 - TRIVY FILE SYSTEM SCAN
+      #########################################################
+      - name: Trivy FS Scan
+        run: |
+
+          trivy fs . > trivyfs.txt
+
+      #########################################################
+      # STEP 8 - BUILD DOCKER IMAGE
+      #########################################################
+      - name: Build Docker Image
+        run: |
+
+          docker build -t employees-app:${VERSION} .
+
+          docker tag employees-app:${VERSION} employees-app:latest
+
+      #########################################################
+      # STEP 9 - TRIVY IMAGE SCAN
+      #########################################################
+      - name: Trivy Image Scan
+        run: |
+
+          trivy image employees-app:${VERSION}
+
+      #########################################################
+      # STEP 10 - CONFIGURE AWS CREDENTIALS
       #########################################################
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -59,7 +138,7 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       #########################################################
-      # STEP 4 - VERIFY AWS LOGIN
+      # STEP 11 - VERIFY AWS LOGIN
       #########################################################
       - name: Verify AWS Identity
         run: |
@@ -67,7 +146,69 @@ jobs:
           aws sts get-caller-identity
 
       #########################################################
-      # STEP 5 - CONFIGURE KUBECONFIG
+      # STEP 12 - LOGIN TO ECR
+      #########################################################
+      - name: Login to ECR
+        run: |
+
+          aws ecr get-login-password --region $AWS_REGION \
+          | docker login \
+          --username AWS \
+          --password-stdin \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      #########################################################
+      # STEP 13 - TAG IMAGE FOR ECR
+      #########################################################
+      - name: Tag Image for ECR
+        run: |
+
+          docker tag employees-app:${VERSION} \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}
+
+          docker tag employees-app:${VERSION} \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:latest
+
+      #########################################################
+      # STEP 14 - PUSH IMAGE TO ECR
+      #########################################################
+      - name: Push Image to ECR
+        run: |
+
+          docker push \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}
+
+          docker push \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:latest
+
+      #########################################################
+      # STEP 15 - UPDATE DOCKER COMPOSE IMAGE
+      #########################################################
+      #- name: Update Docker Compose Image
+       # run: |
+
+        #  sed -i "s|image: .*|image: $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}|g" docker-compose.yml
+
+      #########################################################
+      # STEP 16 - LOCAL DOCKER COMPOSE DEPLOY
+      #########################################################
+      - name: Deploy Containers
+        run: |
+
+          docker-compose down || true
+
+          docker-compose up -d
+
+      #########################################################
+      # STEP 17 - VERIFY LOCAL CONTAINERS
+      #########################################################
+      - name: Verify Running Containers
+        run: |
+
+          docker ps
+
+      #########################################################
+      # STEP 18 - CONFIGURE KUBECONFIG
       #########################################################
       - name: Configure kubeconfig
         run: |
@@ -77,7 +218,7 @@ jobs:
             --name ${CLUSTER_NAME}
 
       #########################################################
-      # STEP 6 - VERIFY EKS CLUSTER
+      # STEP 19 - VERIFY EKS CLUSTER
       #########################################################
       - name: Verify EKS Cluster
         run: |
@@ -85,7 +226,7 @@ jobs:
           kubectl get nodes
 
       #########################################################
-      # STEP 7 - VERIFY METRICS SERVER
+      # STEP 20 - VERIFY METRICS SERVER
       #########################################################
       - name: Verify Metrics Server
         run: |
@@ -93,16 +234,16 @@ jobs:
           kubectl get apiservices | grep metrics || true
 
       #########################################################
-      # STEP 8 - VERIFY NAMESPACE
+      # STEP 21 - CREATE NAMESPACE
       #########################################################
-      - name: Verify Namespace
+      - name: Create Namespace
         run: |
 
           kubectl get namespace vk67220-ns || \
           kubectl create namespace vk67220-ns
 
       #########################################################
-      # STEP 9 - APPLY AUTOSCALING YAML FILES
+      # STEP 23 - DEPLOY AUTOSCALING YAML FILES
       #########################################################
       - name: Deploy AutoScaling Resources
         run: |
@@ -110,7 +251,7 @@ jobs:
           kubectl apply -f autoscaling/
 
       #########################################################
-      # STEP 10 - VERIFY HPA
+      # STEP 24 - VERIFY HPA
       #########################################################
       - name: Verify HPA
         run: |
@@ -121,7 +262,7 @@ jobs:
             -n vk67220-ns
 
       #########################################################
-      # STEP 11 - VERIFY DEPLOYMENT
+      # STEP 25 - VERIFY DEPLOYMENT
       #########################################################
       - name: Verify Deployment
         run: |
@@ -130,7 +271,7 @@ jobs:
             -n vk67220-ns
 
       #########################################################
-      # STEP 12 - VERIFY PODS
+      # STEP 26 - VERIFY PODS
       #########################################################
       - name: Verify Pods
         run: |
@@ -138,7 +279,7 @@ jobs:
           kubectl get pods -n vk67220-ns
 
       #########################################################
-      # STEP 13 - VERIFY SERVICES
+      # STEP 27 - VERIFY SERVICES
       #########################################################
       - name: Verify Services
         run: |
@@ -146,7 +287,7 @@ jobs:
           kubectl get svc -n vk67220-ns
 
       #########################################################
-      # STEP 14 - VERIFY STATEFULSET
+      # STEP 28 - VERIFY STATEFULSET
       #########################################################
       - name: Verify StatefulSet
         run: |
@@ -154,7 +295,7 @@ jobs:
           kubectl get statefulset -n vk67220-ns
 
       #########################################################
-      # STEP 15 - VERIFY PVC
+      # STEP 29 - VERIFY PVC
       #########################################################
       - name: Verify PVC
         run: |
@@ -162,7 +303,7 @@ jobs:
           kubectl get pvc -n vk67220-ns
 
       #########################################################
-      # STEP 16 - VERIFY METRICS
+      # STEP 30 - VERIFY METRICS
       #########################################################
       - name: Verify Metrics
         run: |
@@ -172,25 +313,7 @@ jobs:
           kubectl top nodes || true
 
       #########################################################
-      # STEP 17 - VERIFY HPA WATCH
-      #########################################################
-      - name: Watch HPA
-        run: |
-
-          kubectl get hpa employee-app-hpa \
-            -n vk67220-ns
-
-      #########################################################
-      # STEP 18 - VERIFY APPLICATION URL
-      #########################################################
-      - name: Get Application URL
-        run: |
-
-          kubectl get svc employee-app-svc \
-            -n vk67220-ns
-
-      #########################################################
-      # STEP 19 - VERIFY ROLLOUT STATUS
+      # STEP 31 - VERIFY ROLLOUT STATUS
       #########################################################
       - name: Verify Rollout
         run: |
@@ -198,3 +321,11 @@ jobs:
           kubectl rollout status deployment/employee-app \
             -n vk67220-ns \
             --timeout=300s
+
+      #########################################################
+      # STEP 32 - CLEANUP OLD DOCKER IMAGES
+      #########################################################
+      - name: Cleanup Docker Images
+        run: |
+
+          docker image prune -a -f
