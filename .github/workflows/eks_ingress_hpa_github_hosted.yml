@@ -1,4 +1,4 @@
-name: Enterprise DevSecOps HTTPS Ingress Pipeline
+name: DevSecOps HTTPS Ingress Pipeline with HPA 
 
 on:
   workflow_dispatch:
