@@ -10,9 +10,7 @@ spec:
 
   source:
     repoURL: https://github.com/vk67220/springboot-thymeleaf-crud-pagination-sorting-webapp.git
-
-    targetRevision: HEAD
-
+    targetRevision: master
     path: k8s
 
   destination:
