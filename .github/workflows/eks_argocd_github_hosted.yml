@@ -271,7 +271,7 @@ jobs:
       - name: Commit Updated Deployment YAML
         run: |
 
-          git add k8s/app-deployment.yml
+          git add k8s/app_deployment_config_secret.yml
 
           git commit -m "Updated image version ${VERSION}" \
           || echo "No changes to commit"
