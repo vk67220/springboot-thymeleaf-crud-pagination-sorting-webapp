@@ -1,0 +1,167 @@
+name: Enterprise GitOps DevSecOps Pipeline
+
+on:
+  workflow_dispatch:
+
+jobs:
+  devsecops:
+    runs-on: self-hosted
+
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      ECR_REPO: employees-app-dev
+
+    steps:
+
+      #################################################
+      # CHECKOUT
+      #################################################
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      #################################################
+      # SETUP JAVA
+      #################################################
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      #################################################
+      # VERSION
+      #################################################
+      - name: Set Version
+        run: |
+
+          VERSION=0.0.${GITHUB_RUN_NUMBER}
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      #################################################
+      # BUILD
+      #################################################
+      - name: Maven Build
+        run: |
+
+          mvn clean package -DskipTests
+
+      #################################################
+      # SONARQUBE
+      #################################################
+      - name: SonarQube Scan
+        run: |
+
+          mvn sonar:sonar \
+            -Dsonar.projectKey=employees \
+            -Dsonar.projectName=employees \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.login=${SONAR_TOKEN}
+
+      #################################################
+      # TRIVY FS
+      #################################################
+      - name: Trivy FS Scan
+        run: |
+
+          trivy fs .
+
+      #################################################
+      # DOCKER BUILD
+      #################################################
+      - name: Build Docker Image
+        run: |
+
+          docker build \
+          -t employees-app:${VERSION} .
+
+      #################################################
+      # AWS LOGIN
+      #################################################
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      #################################################
+      # ECR LOGIN
+      #################################################
+      - name: Login to ECR
+        run: |
+
+          aws ecr get-login-password \
+          --region $AWS_REGION \
+          | docker login \
+          --username AWS \
+          --password-stdin \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      #################################################
+      # TAG IMAGE
+      #################################################
+      - name: Tag Docker Image
+        run: |
+
+          docker tag employees-app:${VERSION} \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}
+
+      #################################################
+      # PUSH IMAGE
+      #################################################
+      - name: Push Docker Image
+        run: |
+
+          docker push \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}
+
+      #################################################
+      # UPDATE K8S IMAGE
+      #################################################
+      - name: Update Deployment YAML
+        run: |
+
+          sed -i "s|image: .*|image: $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}|g" k8s/app-deployment.yml
+
+      #################################################
+      # GIT CONFIG
+      #################################################
+      - name: Configure Git
+        run: |
+
+          git config --global user.name "github-actions"
+
+          git config --global user.email "github-actions@github.com"
+
+      #################################################
+      # COMMIT YAML
+      #################################################
+      - name: Commit Updated YAML
+        run: |
+
+          git add k8s/app-deployment.yml
+
+          git commit -m "Updated image version ${VERSION}" \
+          || echo "No changes"
+
+      #################################################
+      # PUSH CHANGES
+      #################################################
+      - name: Push Changes
+        run: |
+
+          git push origin HEAD:${GITHUB_REF_NAME}
