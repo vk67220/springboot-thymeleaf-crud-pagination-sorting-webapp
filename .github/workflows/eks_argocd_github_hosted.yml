@@ -253,7 +253,7 @@ jobs:
       - name: Verify Updated Deployment YAML
         run: |
 
-          cat k8s/app-deployment.yml
+          cat k8s/app_deployment_config_secret.yml
 
       #########################################################
       # STEP 23 - CONFIGURE GIT
