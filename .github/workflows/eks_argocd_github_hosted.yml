@@ -245,7 +245,7 @@ jobs:
       - name: Update Kubernetes Deployment YAML
         run: |
 
-          sed -i "s|image: .*|image: $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}|g" k8s/app-deployment.yml
+          sed -i "s|image: .*|image: $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${VERSION}|g" k8s/app_deployment_config_secret.yml
 
       #########################################################
       # STEP 22 - VERIFY UPDATED IMAGE
