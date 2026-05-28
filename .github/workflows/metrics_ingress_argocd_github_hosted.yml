@@ -2,6 +2,14 @@ name: Platform Services Installation
 
 on:
   workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Select environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - production
 
 jobs:
 
