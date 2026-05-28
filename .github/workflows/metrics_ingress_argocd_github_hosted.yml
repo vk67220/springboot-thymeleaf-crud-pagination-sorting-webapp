@@ -16,6 +16,7 @@ jobs:
   platform-installation:
 
     runs-on: self-hosted
+    environment: ${{ inputs.target_env }}
 
     env:
 
