@@ -25,3 +25,33 @@ spec:
 
     syncOptions:
       - CreateNamespace=true
+
+
+  #########################################################
+  # IGNORE DYNAMIC KUBERNETES CHANGES
+  #########################################################
+  ignoreDifferences:
+
+    #####################################################
+    # IGNORE HPA REPLICA CHANGES
+    #####################################################
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+
+    #####################################################
+    # IGNORE INGRESS STATUS
+    #####################################################
+    - group: networking.k8s.io
+      kind: Ingress
+      jsonPointers:
+        - /status
+
+    #####################################################
+    # IGNORE CERTIFICATE STATUS
+    #####################################################
+    - group: cert-manager.io
+      kind: Certificate
+      jsonPointers:
+        - /status
