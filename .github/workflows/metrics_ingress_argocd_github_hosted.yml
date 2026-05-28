@@ -48,6 +48,15 @@ jobs:
 
           aws-region: ${{ secrets.AWS_REGION }}
 
+        #########################################################
+        # STEP 3 - VERIFY AWS IDENTITY
+        ##########################################################
+ 
+      - name: Verify AWS Identity
+        run: |
+
+          aws sts get-caller-identity
+
       #########################################################
       # STEP 3 - CONFIGURE KUBECONFIG
       #########################################################
