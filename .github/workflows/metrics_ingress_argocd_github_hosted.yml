@@ -1,0 +1,285 @@
+name: Platform Services Installation
+
+on:
+  workflow_dispatch:
+
+jobs:
+
+  platform-installation:
+
+    runs-on: self-hosted
+
+    env:
+
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    steps:
+
+      #########################################################
+      # STEP 1 - CHECKOUT CODE
+      #########################################################
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      #########################################################
+      # STEP 2 - CONFIGURE AWS CREDENTIALS
+      #########################################################
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      #########################################################
+      # STEP 3 - CONFIGURE KUBECONFIG
+      #########################################################
+      - name: Configure kubeconfig
+        run: |
+
+          aws eks update-kubeconfig \
+          --region ${AWS_REGION} \
+          --name ${CLUSTER_NAME}
+
+      #########################################################
+      # STEP 4 - VERIFY CLUSTER
+      #########################################################
+      - name: Verify EKS Cluster
+        run: |
+
+          kubectl get nodes
+
+      #########################################################
+      # STEP 5 - INSTALL HELM
+      #########################################################
+      - name: Install Helm
+        run: |
+
+          curl -fsSL -o get_helm.sh \
+          https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+
+          chmod 700 get_helm.sh
+
+          ./get_helm.sh
+
+      #########################################################
+      # STEP 6 - VERIFY HELM
+      #########################################################
+      - name: Verify Helm
+        run: |
+
+          helm version
+
+      #########################################################
+      # STEP 7 - INSTALL METRICS SERVER
+      #########################################################
+      - name: Install Metrics Server
+        run: |
+
+          helm repo add metrics-server \
+          https://kubernetes-sigs.github.io/metrics-server/
+
+          helm repo update
+
+          helm upgrade --install metrics-server \
+          metrics-server/metrics-server \
+          -n kube-system
+
+      #########################################################
+      # STEP 8 - WAIT FOR METRICS API
+      #########################################################
+      - name: Wait For Metrics API
+        run: |
+
+          echo "Waiting for metrics API..."
+
+          sleep 10
+
+          kubectl get apiservices | grep metrics
+
+      #########################################################
+      # STEP 9 - VERIFY METRICS
+      #########################################################
+      - name: Verify Metrics
+        run: |
+
+          kubectl top nodes || true
+
+      #########################################################
+      # STEP 10 - INSTALL NGINX INGRESS
+      #########################################################
+      - name: Install NGINX Ingress
+        run: |
+
+          kubectl apply -f \
+          https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/aws/deploy.yaml
+
+      #########################################################
+      # STEP 11 - WAIT FOR INGRESS
+      #########################################################
+      - name: Wait For Ingress Controller
+        run: |
+
+          kubectl rollout status deployment/ingress-nginx-controller \
+          -n ingress-nginx \
+          --timeout=300s
+
+      #########################################################
+      # STEP 12 - VERIFY INGRESS PODS
+      #########################################################
+      - name: Verify Ingress Pods
+        run: |
+
+          kubectl get pods -n ingress-nginx
+
+      #########################################################
+      # STEP 13 - VERIFY INGRESS SERVICE
+      #########################################################
+      - name: Verify Ingress Service
+        run: |
+
+          kubectl get svc -n ingress-nginx
+
+      #########################################################
+      # STEP 14 - INSTALL CERT-MANAGER
+      #########################################################
+      - name: Install Cert Manager
+        run: |
+
+          kubectl apply -f \
+          https://github.com/cert-manager/cert-manager/releases/download/v1.13.1/cert-manager.yaml
+
+      #########################################################
+      # STEP 15 - WAIT FOR CERT-MANAGER
+      #########################################################
+      - name: Wait For Cert Manager
+        run: |
+
+          kubectl rollout status deployment/cert-manager \
+          -n cert-manager \
+          --timeout=300s
+
+      #########################################################
+      # STEP 16 - VERIFY CERT-MANAGER
+      #########################################################
+      - name: Verify Cert Manager Pods
+        run: |
+
+          kubectl get pods -n cert-manager
+
+      #########################################################
+      # STEP 17 - CREATE ARGOCD NAMESPACE
+      #########################################################
+      - name: Create ArgoCD Namespace
+        run: |
+
+          kubectl create namespace argocd || true
+
+      #########################################################
+      # STEP 18 - ADD ARGOCD HELM REPO
+      #########################################################
+      - name: Add ArgoCD Helm Repo
+        run: |
+
+          helm repo add argo \
+          https://argoproj.github.io/argo-helm
+
+          helm repo update
+
+      #########################################################
+      # STEP 19 - INSTALL ARGOCD
+      #########################################################
+      - name: Install ArgoCD
+        run: |
+
+          helm upgrade --install argocd \
+          argo/argo-cd \
+          --namespace argocd
+
+      #########################################################
+      # STEP 20 - WAIT FOR ARGOCD
+      #########################################################
+      - name: Wait For ArgoCD
+        run: |
+
+          kubectl rollout status deployment/argocd-server \
+          -n argocd \
+          --timeout=300s
+
+      #########################################################
+      # STEP 21 - VERIFY ARGOCD PODS
+      #########################################################
+      - name: Verify ArgoCD Pods
+        run: |
+
+          kubectl get pods -n argocd
+
+      #########################################################
+      # STEP 22 - VERIFY ARGOCD SERVICES
+      #########################################################
+      - name: Verify ArgoCD Services
+        run: |
+
+          kubectl get svc -n argocd
+
+      #########################################################
+      # STEP 23 - EXPOSE ARGOCD SERVER
+      #########################################################
+      - name: Expose ArgoCD Server
+        run: |
+
+          kubectl patch svc argocd-server \
+          -n argocd \
+          -p '{"spec":{"type":"LoadBalancer"}}'
+
+      #########################################################
+      # STEP 24 - VERIFY LOADBALANCER
+      #########################################################
+      - name: Verify ArgoCD LoadBalancer
+        run: |
+
+          kubectl get svc argocd-server \
+          -n argocd
+
+      #########################################################
+      # STEP 25 - GET ARGOCD PASSWORD
+      #########################################################
+      - name: Get ArgoCD Password
+        run: |
+
+          kubectl -n argocd get secret \
+          argocd-initial-admin-secret \
+          -o jsonpath="{.data.password}" | base64 -d
+
+      #########################################################
+      # STEP 26 - VERIFY ALL NAMESPACES
+      #########################################################
+      - name: Verify Namespaces
+        run: |
+
+          kubectl get ns
+
+      #########################################################
+      # STEP 27 - VERIFY ALL SERVICES
+      #########################################################
+      - name: Verify Services
+        run: |
+
+          kubectl get svc -A
+
+      #########################################################
+      # STEP 28 - VERIFY ALL PODS
+      #########################################################
+      - name: Verify Pods
+        run: |
+
+          kubectl get pods -A
