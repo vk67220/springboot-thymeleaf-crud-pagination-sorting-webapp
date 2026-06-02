@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+
+metadata:
+  name: employee-app-monitor
+  namespace: monitoring
+
+  labels:
+    release: monitoring
+
+spec:
+
+  selector:
+
+    matchLabels:
+      app: employee-app
+
+  namespaceSelector:
+
+    matchNames:
+      - vk67220-ns
+
+  endpoints:
+
+    - port: http
+
+      path: /actuator/prometheus
+
+      interval: 30s
+
+      scrapeTimeout: 10s
