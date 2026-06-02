@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: prometheus-ingress
+  namespace: monitoring
+
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+
+spec:
+  ingressClassName: nginx
+
+  tls:
+    - hosts:
+        - prometheus.metatechz.store
+      secretName: prometheus-tls
+
+  rules:
+    - host: prometheus.metatechz.store
+
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+
+            backend:
+              service:
+                name: monitoring-kube-prometheus-prometheus
+
+                port:
+                  number: 9090
