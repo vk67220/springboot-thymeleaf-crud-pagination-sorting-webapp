@@ -174,7 +174,7 @@ jobs:
         run: |
 
           kubectl get application employee-project -n argocd \
-          || kubectl apply -f argocd/argocd-app.yml
+          || kubectl apply -f argocd/argocd-app.yml -n argocd
 
       #########################################################
       # STEP 15 - VERIFY ARGOCD APPLICATION
@@ -184,8 +184,26 @@ jobs:
 
           kubectl get applications -n argocd
 
+
       #########################################################
-      # STEP 16 - LOGIN TO ECR
+      # STEP 15 - APPLY MONITORING ARGOCD APPLICATION ONLY ONCE
+      #########################################################
+      - name: Apply Monitoring Application
+        run: |
+
+          kubectl get application monitoring-project -n argocd \
+          || kubectl apply -f argocd/monitoring-app.yml
+
+      #########################################################
+      # STEP 16 - VERIFY ARGOCD APPLICATIONS
+      #########################################################
+      - name: Verify ArgoCD Applications
+        run: |
+
+          kubectl get applications -n argocd
+
+      #########################################################
+      # STEP 17 - LOGIN TO ECR
       #########################################################
       - name: Login to ECR
         run: |
