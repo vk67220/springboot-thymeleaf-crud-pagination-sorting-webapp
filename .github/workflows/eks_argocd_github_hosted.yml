@@ -193,6 +193,7 @@ jobs:
 
           kubectl get application monitoring-project -n argocd \
           || kubectl apply -f argocd/monitoring-app.yml
+          
 
       #########################################################
       # STEP 16 - VERIFY ARGOCD APPLICATIONS
