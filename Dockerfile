@@ -3,7 +3,7 @@ FROM maven:3.8.8-eclipse-temurin-8 AS build
 WORKDIR /build
 COPY pom.xml .
 COPY src ./src
-RUN mvn clean package -DskipTests
+RUN mvn clean install -Dmaven.test.skip=true
 
 # -------- Runtime stage --------
 FROM eclipse-temurin:8-jdk-alpine
