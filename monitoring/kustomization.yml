@@ -3,5 +3,4 @@ kind: Kustomization
 
 resources:
   - ingress/grafana-ingress.yml
-  - ingress/prometheus-ingress.yml
-  
+  - ingress/prometheus-ingress.yml  
