@@ -4,4 +4,4 @@ kind: Kustomization
 resources:
   - ingress/grafana-ingress.yml
   - ingress/prometheus-ingress.yml
-  - servicemonitors/employee-app-monitor.yml
+  
